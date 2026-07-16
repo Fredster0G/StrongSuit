@@ -1,0 +1,70 @@
+import type { SeedRow } from './exercises_p1'
+
+export const p2: SeedRow[] = [
+  // LUNGE (30)
+  ['Forward Lunge', 'front lunge', 'lunge', 'quads,glutes', 'dumbbell,bodyweight', 'weight_reps', ['Step forward and drop', 'Push back off the front foot']],
+  ['Curtsy Lunge', 'curtsey', 'lunge', 'glutes,quads', 'dumbbell,bodyweight', 'weight_reps', ['Step diagonally behind', 'Keep hips relatively square']],
+  ['Lateral Lunge', 'side lunge', 'lunge', 'quads,glutes,adductors', 'dumbbell,bodyweight', 'weight_reps', ['Step to the side', 'Keep the trailing leg straight']],
+  ['Deficit Reverse Lunge', 'deficit lunge', 'lunge', 'glutes,quads', 'dumbbell,barbell', 'weight_reps', ['Stand on a small plate', 'Step back for a deeper stretch']],
+  ['Jumping Lunge', 'split squat jump', 'lunge', 'quads,glutes', 'bodyweight', 'reps', ['Explode up and switch legs', 'Land softly']],
+  ['Clock Lunge', 'around the world lunge', 'lunge', 'quads,glutes', 'bodyweight', 'reps', ['Lunge forward, side, and back', 'Keep chest up']],
+  ['Slider Reverse Lunge', 'slider lunge', 'lunge', 'quads,glutes', 'bodyweight', 'reps', ['Slide the back foot back', 'Pull it back in using the front leg']],
+  ['Zercher Lunge', 'zercher lunge', 'lunge', 'quads,core', 'barbell', 'weight_reps', ['Hold bar in elbow crooks', 'Stay upright']],
+  ['Overhead Lunge', 'oh lunge', 'lunge', 'quads,core,shoulders', 'barbell,dumbbell', 'weight_reps', ['Keep weight locked out overhead', 'Don\'t let the arms drop']],
+  ['Pendulum Lunge', 'forward to reverse lunge', 'lunge', 'quads,glutes', 'bodyweight', 'reps', ['Step forward then immediately backward', 'Maintain balance']],
+
+  // CARRY (20)
+  ['Waiters Carry', 'waiter walk,overhead carry', 'carry', 'core,shoulders', 'dumbbell,kettlebell', 'distance', ['Keep arm locked out', 'Ribs down']],
+  ['Rack Carry', 'front rack carry', 'carry', 'core,upper back', 'kettlebell,dumbbell', 'distance', ['Keep bells tight to the chest', 'Stay tall']],
+  ['Zercher Carry', 'zercher walk', 'carry', 'core,upper back', 'barbell,sandbag', 'distance', ['Hold in elbow crooks', 'Breathe into the belly']],
+  ['Yoke Walk', 'yoke carry', 'carry', 'core,legs,traps', 'yoke', 'distance', ['Short, choppy steps', 'Stay tight under the yoke']],
+  ['Sandbag Carry', 'bear hug carry', 'carry', 'core,back', 'sandbag', 'distance', ['Hug it tight', 'Lean back slightly to counterbalance']],
+  ['Trap Bar Carry', 'hex bar carry', 'carry', 'grip,traps', 'trap bar', 'distance', ['Stand tall', 'Don\'t let it bounce too much']],
+  ['Duck Walk', 'duck carry', 'carry', 'quads,grip', 'kettlebell', 'distance', ['Hold weight between legs', 'Walk in a quarter squat']],
+  ['Cross-Body Carry', 'asymmetrical carry', 'carry', 'core,obliques', 'kettlebell', 'distance', ['One bell overhead, one by your side', 'Keep torso perfectly vertical']],
+
+  // CORE (30)
+  ['Ab Wheel Rollout', 'ab roller', 'core', 'core', 'bodyweight', 'reps', ['Keep a slight hollow body position', 'Don\'t let lower back arch']],
+  ['Cable Crunch', 'rope crunch', 'core', 'abs', 'cable', 'reps', ['Keep hips locked', 'Crunch the ribs to the pelvis']],
+  ['Decline Crunch', 'situp', 'core', 'abs', 'bodyweight', 'reps', ['Cross arms on chest', 'Curl up smoothly']],
+  ['Russian Twist', 'twist', 'core', 'obliques', 'bodyweight,dumbbell', 'reps', ['Lean back slightly', 'Rotate the torso, not just the arms']],
+  ['Bicycle Crunch', 'bicycles', 'core', 'abs,obliques', 'bodyweight', 'reps', ['Elbow to opposite knee', 'Extend the other leg fully']],
+  ['Hollow Body Hold', 'hollow hold', 'core', 'core', 'bodyweight', 'time', ['Lower back pressed hard into the floor', 'Point toes, reach arms']],
+  ['V-Up', 'v up', 'core', 'abs', 'bodyweight', 'reps', ['Fold in half', 'Touch toes at the top']],
+  ['Dragon Flag', 'dragon flag', 'core', 'core', 'bodyweight', 'reps', ['Keep body rigid like a board', 'Control the eccentric']],
+  ['Toes to Bar', 't2b,ttb', 'core', 'abs,hip flexors', 'pull-up bar', 'reps', ['Kip or strict', 'Flick the toes to the bar']],
+  ['L-Sit', 'l sit', 'core', 'core,hip flexors', 'bodyweight', 'time', ['Legs perfectly straight', 'Depress the shoulders']],
+  ['Woodchopper', 'cable chop', 'core', 'obliques', 'cable', 'reps', ['Rotate from the core', 'Keep arms relatively straight']],
+  ['Suitcase Deadlift', 'suitcase dl', 'core', 'obliques,glutes', 'kettlebell,dumbbell', 'weight_reps', ['Resist the side bend', 'Square hips and shoulders']],
+  ['Bird Dog', 'birddog', 'core', 'core,glutes', 'bodyweight', 'reps', ['Don\'t arch the lower back', 'Reach long, not high']],
+  ['Copenhagen Plank', 'copenhagen', 'core', 'adductors,obliques', 'bodyweight,bench', 'time', ['Top leg rests on the bench', 'Keep hips up and forward']],
+
+  // CONDITIONING (30)
+  ['Sled Push', 'prowler push', 'conditioning', 'quads,calves,cardio', 'sled', 'distance', ['Drive through the balls of the feet', 'Keep torso angle low']],
+  ['Sled Pull', 'backward sled drag', 'conditioning', 'quads,cardio', 'sled', 'distance', ['Sit back in a quarter squat', 'Continuous backward steps']],
+  ['Assault Bike', 'airbike,echo bike', 'conditioning', 'full body,cardio', 'machine', 'time', ['Push and pull with the arms', 'Pace yourself on intervals']],
+  ['Rowing Machine', 'erg,concept 2', 'conditioning', 'full body,cardio', 'machine', 'distance', ['Legs, core, arms', 'Arms, core, legs']],
+  ['SkiErg', 'ski', 'conditioning', 'lats,core,cardio', 'machine', 'time', ['Hinge at the hips', 'Pull all the way through']],
+  ['Burpee', 'burpees', 'conditioning', 'full body,cardio', 'bodyweight', 'reps', ['Chest to the floor', 'Small jump at the top']],
+  ['Box Jump', 'box jumps', 'conditioning', 'legs,power', 'box', 'reps', ['Land softly in a quarter squat', 'Step down, don\'t jump down']],
+  ['Wall Ball', 'wall balls', 'conditioning', 'legs,shoulders', 'medicine ball', 'reps', ['Full squat', 'Use leg drive to throw the ball']],
+  ['Kettlebell Snatch', 'kb snatch', 'conditioning', 'full body,power', 'kettlebell', 'reps', ['Punch through at the top to avoid bruising', 'Keep it close to the body']],
+  ['Battle Ropes', 'ropes', 'conditioning', 'arms,shoulders,cardio', 'ropes', 'time', ['Keep a quarter squat stance', 'Use your core to stabilize']],
+  ['Tire Flip', 'tire', 'conditioning', 'full body,power', 'tire', 'reps', ['Drive into it at a 45 degree angle', 'Use your knee to help it over']],
+  ['Sprints', 'running', 'conditioning', 'legs,cardio', 'bodyweight', 'distance', ['Pump the arms', 'Run on the balls of the feet']],
+  ['Jump Rope', 'skipping', 'conditioning', 'calves,cardio', 'jump rope', 'time', ['Stay light on the feet', 'Rotate wrists, not whole arms']],
+  ['Double Unders', 'dubs', 'conditioning', 'calves,cardio', 'jump rope', 'reps', ['Jump slightly higher', 'Fast wrist flick']],
+  ['Mountain Climbers', 'climbers', 'conditioning', 'core,cardio', 'bodyweight', 'time', ['Keep hips down', 'Drive knees to chest']],
+
+  // MOBILITY (20)
+  ['90/90 Stretch', '90 90', 'mobility', 'hips', 'bodyweight', 'time', ['Keep both knees at 90 degrees', 'Lean forward with a flat back']],
+  ['Couch Stretch', 'couch', 'mobility', 'quads,hip flexors', 'bodyweight', 'time', ['Shin flat against the wall', 'Squeeze the glute on the stretching side']],
+  ['Pigeon Pose', 'pigeon', 'mobility', 'glutes,hips', 'bodyweight', 'time', ['Keep hips square to the floor', 'Breathe into the stretch']],
+  ['World\'s Greatest Stretch', 'spiderman lunge', 'mobility', 'full body', 'bodyweight', 'reps', ['Lunge deep', 'Rotate up to the ceiling']],
+  ['Cat-Cow', 'cat cow', 'mobility', 'spine', 'bodyweight', 'reps', ['Segment the spine', 'Move slowly with the breath']],
+  ['Thoracic Rotation', 't-spine rotation,open book', 'mobility', 'upper back', 'bodyweight', 'reps', ['Keep lower back quiet', 'Follow your hand with your eyes']],
+  ['Ankle Dorsiflexion Stretch', 'ankle stretch', 'mobility', 'calves,ankles', 'bodyweight', 'time', ['Drive knee over toe', 'Keep the heel planted']],
+  ['Shoulder Dislocates', 'pass throughs', 'mobility', 'shoulders', 'pvc pipe,band', 'reps', ['Keep arms straight', 'Shrug up as you go over']],
+  ['Dead Hang', 'bar hang', 'mobility', 'lats,shoulders,spine', 'pull-up bar', 'time', ['Relax the shoulders', 'Breathe into the stretch']],
+  ['Asian Squat', 'deep squat hold,slav squat', 'mobility', 'hips,ankles', 'bodyweight', 'time', ['Heels flat', 'Chest up, relax into the bottom']],
+]

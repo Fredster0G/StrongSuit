@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "strongsuit-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--port", "4173"],
+      "cwd": "strongsuit-v0.1/strongsuit",
+      "port": 4173
+    }
+  ]
+}

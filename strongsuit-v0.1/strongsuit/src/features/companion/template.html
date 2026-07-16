@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Companion</title>
+  <style>
+    :root {
+      --brand: /*__SS_BRAND_COLOR__*/;
+      --bg: #1a1a1a;
+      --surface: #2a2a2a;
+      --ink: #ffffff;
+      --muted: #a3a3a3;
+      --faint: #525252;
+      --border: #3f3f46;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    header { background: var(--surface); padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+    .logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--faint); }
+    h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    h2 { margin: 0; font-size: 14px; color: var(--muted); font-weight: normal; }
+    
+    .container { padding: 16px; max-width: 600px; margin: 0 auto; padding-bottom: 100px; }
+    
+    .card { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
+    .card-title { font-weight: 600; margin-top: 0; margin-bottom: 12px; font-size: 16px; }
+    
+    .btn { display: inline-flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--border); color: var(--ink); padding: 10px 16px; border-radius: var(--radius); font-weight: 500; font-size: 15px; cursor: pointer; text-decoration: none; width: 100%; transition: opacity 0.2s; }
+    .btn:active { opacity: 0.7; }
+    .btn-primary { background: var(--brand); border-color: var(--brand); color: white; }
+    
+    .day-selector { display: flex; flex-direction: column; gap: 8px; }
+    .day-btn { text-align: left; justify-content: flex-start; padding: 16px; }
+    
+    .exercise-block { margin-bottom: 24px; }
+    .exercise-name { font-weight: 600; margin-bottom: 4px; font-size: 16px; }
+    .exercise-meta { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    
+    .set-row { display: grid; grid-template-columns: 32px 1fr 1fr 44px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .set-num { font-size: 13px; color: var(--faint); font-weight: 600; text-align: center; }
+    
+    input[type="number"] { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--ink); border-radius: 4px; padding: 10px 8px; font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+    input[type="number"]:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+    
+    .checkbox { width: 32px; height: 32px; border: 2px solid var(--faint); border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .checkbox.checked { background: var(--brand); border-color: var(--brand); }
+    .checkbox.checked::after { content: "✓"; color: white; font-weight: bold; }
+    
+    .footer { text-align: center; padding: 24px 16px; color: var(--faint); font-size: 12px; margin-top: 24px; }
+    .footer-actions { display: flex; gap: 12px; flex-direction: column; margin-bottom: 24px; }
+    
+    #view-program, #view-workout, #view-success { display: none; }
+    .active-view { display: block !important; }
+  </style>
+</head>
+<body>
+  /*__SS_PAYLOAD__*/
+  <header>
+    <img id="trainer-logo" class="logo" style="display:none;" />
+    <div>
+      <h1 id="trainer-name">Trainer</h1>
+      <h2 id="client-greeting">Hello</h2>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- View: Select Day -->
+    <div id="view-program">
+      <div class="card">
+        <h3 class="card-title" id="program-name">Program</h3>
+        <p style="color: var(--muted); font-size: 14px; margin-top: 0;" id="program-desc"></p>
+        <div class="day-selector" id="day-list"></div>
+      </div>
+      
+      <div class="footer-actions">
+        <button class="btn btn-primary" onclick="exportData()">Send Data to Coach</button>
+      </div>
+    </div>
+
+    <!-- View: Workout Player -->
+    <div id="view-workout">
+      <button class="btn" style="margin-bottom: 16px;" onclick="navigate('program')">← Back</button>
+      <div id="workout-content"></div>
+      <button class="btn btn-primary" style="margin-top: 24px; padding: 16px;" onclick="finishWorkout()">Finish Workout</button>
+    </div>
+    
+    <!-- View: Success -->
+    <div id="view-success">
+      <div class="card" style="text-align: center; padding: 32px 16px;">
+        <h3 class="card-title" style="font-size: 24px; margin-bottom: 8px;">Great job!</h3>
+        <p style="color: var(--muted); margin-bottom: 24px;">Your session has been saved.</p>
+        <button class="btn btn-primary" onclick="navigate('program')">Return Home</button>
+      </div>
+    </div>
+
+    <div class="footer" id="footer-branding">Built with Strongsuit</div>
+  </div>
+
+  <script>
+    // Globals
+    const payload = window.__SS_PAYLOAD || { program: { weeks: [] }, exercises: [] };
+    const exMap = {};
+    payload.exercises.forEach(e => exMap[e.id] = e.name);
+    
+    const LOCAL_KEY = `__SS_DATA_${payload.client?.id || 'demo'}`;
+    let savedData = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{"logs":[]}');
+    
+    let activeDayId = null;
+    let activeWeekId = null;
+
+    // Init UI
+    function init() {
+      if (payload.trainer) {
+        document.getElementById('trainer-name').textContent = payload.trainer.name || 'Trainer';
+        if (payload.trainer.logo) {
+          document.getElementById('trainer-logo').src = payload.trainer.logo;
+          document.getElementById('trainer-logo').style.display = 'block';
+        }
+      }
+      if (payload.client) {
+        document.getElementById('client-greeting').textContent = `Hello, ${payload.client.name}`;
+      }
+      if (payload.program) {
+        document.getElementById('program-name').textContent = payload.program.name;
+        document.getElementById('program-desc').textContent = payload.program.description;
+        
+        const dayList = document.getElementById('day-list');
+        payload.program.weeks.forEach((w, wIndex) => {
+          const weekLabel = document.createElement('div');
+          weekLabel.textContent = w.label;
+          weekLabel.style.fontWeight = 'bold';
+          weekLabel.style.marginTop = '12px';
+          weekLabel.style.fontSize = '14px';
+          dayList.appendChild(weekLabel);
+          
+          w.days.forEach(d => {
+            const btn = document.createElement('button');
+            btn.className = 'btn day-btn';
+            btn.textContent = d.name;
+            btn.onclick = () => startWorkout(w.id, d.id);
+            dayList.appendChild(btn);
+          });
+        });
+      }
+      
+      navigate('program');
+    }
+
+    function navigate(view) {
+      document.getElementById('view-program').className = '';
+      document.getElementById('view-workout').className = '';
+      document.getElementById('view-success').className = '';
+      document.getElementById(`view-${view}`).className = 'active-view';
+      window.scrollTo(0, 0);
+    }
+
+    function startWorkout(weekId, dayId) {
+      activeWeekId = weekId;
+      activeDayId = dayId;
+      const week = payload.program.weeks.find(w => w.id === weekId);
+      const day = week.days.find(d => d.id === dayId);
+      
+      const container = document.getElementById('workout-content');
+      container.innerHTML = `
+        <h2 style="font-size: 20px; color: var(--ink); margin-bottom: 4px; font-weight: bold;">${day.name}</h2>
+        <p style="color: var(--muted); margin-bottom: 24px; margin-top: 0;">${week.label}</p>
+      `;
+      
+      day.blocks.forEach((block, bIdx) => {
+        if (block.label) {
+          const l = document.createElement('div');
+          l.style.fontWeight = 'bold'; l.style.color = 'var(--brand)'; l.style.marginBottom = '12px'; l.style.marginTop = '24px';
+          l.textContent = block.label + (block.intervalSpec ? ` — ${block.intervalSpec}` : '');
+          container.appendChild(l);
+        }
+        
+        block.exercises.forEach((ex, eIdx) => {
+          const exDiv = document.createElement('div');
+          exDiv.className = 'card exercise-block';
+          
+          const exName = document.createElement('div');
+          exName.className = 'exercise-name';
+          exName.textContent = exMap[ex.exerciseId] || 'Unknown Exercise';
+          exDiv.appendChild(exName);
+          
+          if (ex.note) {
+            const note = document.createElement('div');
+            note.className = 'exercise-meta';
+            note.textContent = ex.note;
+            exDiv.appendChild(note);
+          }
+          
+          const headers = document.createElement('div');
+          headers.className = 'set-row';
+          headers.style.marginBottom = '4px';
+          headers.innerHTML = `<div></div><div style="font-size:11px;color:var(--faint);text-align:center;">LBS</div><div style="font-size:11px;color:var(--faint);text-align:center;">REPS</div><div></div>`;
+          exDiv.appendChild(headers);
+          
+          ex.sets.forEach((set, sIdx) => {
+            const row = document.createElement('div');
+            row.className = 'set-row';
+            
+            const setId = `s_${bIdx}_${eIdx}_${sIdx}`;
+            
+            row.innerHTML = `
+              <div class="set-num">${sIdx + 1}</div>
+              <input type="number" inputmode="decimal" id="${setId}_load" placeholder="${set.load || '-'}">
+              <input type="number" inputmode="numeric" id="${setId}_reps" placeholder="${set.reps || '-'}">
+              <div class="checkbox" id="${setId}_done" onclick="this.classList.toggle('checked')"></div>
+            `;
+            // Add custom attributes to inputs to easily find them later
+            const ld = row.querySelector(`#${setId}_load`);
+            const rp = row.querySelector(`#${setId}_reps`);
+            const cb = row.querySelector(`#${setId}_done`);
+            ld.dataset.exid = ex.exerciseId; ld.dataset.sidx = sIdx; ld.dataset.bidx = bIdx; ld.dataset.eidx = eIdx;
+            
+            exDiv.appendChild(row);
+          });
+          
+          container.appendChild(exDiv);
+        });
+      });
+      
+      navigate('workout');
+    }
+
+    function finishWorkout() {
+      // Gather all inputs
+      const week = payload.program.weeks.find(w => w.id === activeWeekId);
+      const day = week.days.find(d => d.id === activeDayId);
+      
+      const entriesMap = {}; // group by exerciseId
+      
+      day.blocks.forEach((block, bIdx) => {
+        block.exercises.forEach((ex, eIdx) => {
+          if (!entriesMap[ex.exerciseId]) {
+            entriesMap[ex.exerciseId] = { exerciseId: ex.exerciseId, sets: [] };
+          }
+          const entry = entriesMap[ex.exerciseId];
+          
+          ex.sets.forEach((set, sIdx) => {
+            const setId = `s_${bIdx}_${eIdx}_${sIdx}`;
+            const cb = document.getElementById(`${setId}_done`);
+            const done = cb.classList.contains('checked');
+            
+            if (done) {
+              const ld = document.getElementById(`${setId}_load`);
+              const rp = document.getElementById(`${setId}_reps`);
+              
+              entry.sets.push({
+                targetLoad: set.load,
+                targetReps: set.reps,
+                actualLoad: parseFloat(ld.value) || set.load || 0,
+                actualReps: parseInt(rp.value) || parseInt(set.reps) || 0,
+                done: true
+              });
+            }
+          });
+        });
+      });
+      
+      const entries = Object.values(entriesMap).filter(e => e.sets.length > 0);
+      
+      if (entries.length === 0) {
+        alert("You didn't mark any sets as complete!");
+        return;
+      }
+      
+      const log = {
+        id: crypto.randomUUID ? crypto.randomUUID() : 'log_' + Date.now(),
+        clientId: payload.client.id,
+        programId: payload.program.id,
+        weekId: activeWeekId,
+        dayId: activeDayId,
+        date: new Date().toISOString().split('T')[0],
+        title: day.name,
+        entries: entries,
+        source: 'companion-import'
+      };
+      
+      savedData.logs.push(log);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(savedData));
+      
+      navigate('success');
+    }
+
+    function exportData() {
+      if (savedData.logs.length === 0) {
+        alert("No sessions logged yet to send!");
+        return;
+      }
+      
+      const dataStr = JSON.stringify(savedData);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${payload.client?.name || 'client'}_data.ssdata`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Run
+    init();
+  </script>
+</body>
+</html>

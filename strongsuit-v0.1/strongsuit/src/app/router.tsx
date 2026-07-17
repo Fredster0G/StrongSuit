@@ -13,6 +13,8 @@ import ProgramsPage from '@/features/programs/ProgramsPage'
 import ProgramBuilder from '@/features/programs/builder/ProgramBuilder'
 import SessionLoggerPage from '@/features/logging/SessionLoggerPage'
 import FilmRoomPage from '@/features/filmroom/FilmRoomPage'
+import SyncCenterPage from '@/features/sync/SyncCenterPage'
+import PrintSessionSheet from '@/features/print/PrintSessionSheet'
 
 // Hash router: file-protocol friendly (spec §2.2)
 export const router = createHashRouter([
@@ -30,9 +32,14 @@ export const router = createHashRouter([
       { path: 'film-room', element: <FilmRoomPage /> },
       { path: 'calendar', element: <CalendarPage /> },
       { path: 'business', element: <BusinessPage /> },
+      { path: 'sync', element: <SyncCenterPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'kitchen-sink', element: <KitchenSink /> },
     ],
   },
+  {
+    path: '/print/program/:clientId/:programId',
+    element: <PrintSessionSheet />
+  }
 ])

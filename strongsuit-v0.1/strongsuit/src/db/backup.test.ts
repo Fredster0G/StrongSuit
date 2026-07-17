@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect } from 'vitest'
 import { encryptText, decryptText, isEncryptedBackup, parseEnvelope, importBackup, buildEnvelope } from './backup'
-import { StrongsuitDB } from './schema'
+import { CoachwrightDB } from './schema'
 import { makeRepo } from './repo/base'
 import { stamp } from '@/lib/core'
 import { e1rm } from '@/lib/core'
@@ -23,18 +23,22 @@ describe('crypto', () => {
 
 describe('envelope', () => {
   it('rejects non-backup files', () => {
-    expect(() => parseEnvelope('{"app":"other"}')).toThrow(/isn't a Strongsuit backup/)
+    expect(() => parseEnvelope('{"app":"other"}')).toThrow(/isn't a Coachwright backup/)
     expect(() => parseEnvelope('not json')).toThrow()
   })
   it('rejects newer schema versions', () => {
-    const env = JSON.stringify({ app: 'strongsuit', schemaVersion: 999, data: {} })
+    const env = JSON.stringify({ app: 'coachwright', schemaVersion: 999, data: {} })
     expect(() => parseEnvelope(env)).toThrow(/newer version/)
+  })
+  it('still accepts pre-rename (strongsuit) backups', () => {
+    const env = JSON.stringify({ app: 'strongsuit', schemaVersion: 1, data: {} })
+    expect(parseEnvelope(env).app).toBe('strongsuit')
   })
 })
 
 describe('merge logic (newest updatedAt wins)', () => {
   it('applies newer rows, skips older', async () => {
-    const testDb = new StrongsuitDB('merge-test')
+    const testDb = new CoachwrightDB('merge-test')
     const repo = makeRepo<Client>(testDb.clients)
     const base = stamp({
       firstName: 'Ada', lastName: 'L', status: 'active', goals: '', injuries: '',

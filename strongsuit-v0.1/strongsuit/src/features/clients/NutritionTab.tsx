@@ -5,6 +5,7 @@ import { Card, Field, Input, Select, Stat, EmptyState, Button, toast } from '@/d
 import { clientsRepo, metricsRepo } from '@/db/repo'
 import type { Client, Units, Sex, ActivityLevel, NutritionGoal } from '@/db/types'
 import { nutritionPlan, ageFromBirthDate, toKg, ACTIVITY_FACTORS, type RationaleLine } from '@/lib/nutrition'
+import { goalPlan, GOAL_LABELS } from '@/lib/goals'
 import { today } from '@/lib/core'
 
 function Why({ line }: { line: RationaleLine }) {
@@ -36,7 +37,11 @@ export default function NutritionTab({ client, units }: { client: Client; units:
   }
 
   const age = client.birthDate ? ageFromBirthDate(client.birthDate) : null
-  const ready = latestBw && client.heightCm && client.sex && age !== null && client.activityLevel && client.nutritionGoal
+  // Nutrition goal falls back to the one implied by the training goal, so a
+  // coach who set "Fat loss" on the Coaching tab gets a cut here automatically.
+  const effectiveGoal = client.nutritionGoal ?? (client.trainingGoal ? goalPlan(client.trainingGoal).nutritionGoal : undefined)
+  const goalFromTraining = !client.nutritionGoal && !!client.trainingGoal
+  const ready = latestBw && client.heightCm && client.sex && age !== null && client.activityLevel && effectiveGoal
   const plan = ready
     ? nutritionPlan({
         weightKg: toKg(latestBw!.value, latestBw!.unit === 'kg' ? 'kg' : 'lb'),
@@ -44,7 +49,7 @@ export default function NutritionTab({ client, units }: { client: Client; units:
         age: age!,
         sex: client.sex!,
         activity: client.activityLevel!,
-        goal: client.nutritionGoal!,
+        goal: effectiveGoal!,
       })
     : null
 
@@ -112,10 +117,13 @@ export default function NutritionTab({ client, units }: { client: Client; units:
         <>
           {/* Targets */}
           <Card>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-ink">Daily targets</h3>
               <span className="text-2xs text-faint">BMR {plan.bmr} · TDEE {plan.tdee} kcal</span>
             </div>
+            {goalFromTraining && client.trainingGoal && (
+              <p className="mb-2 text-2xs text-muted">Goal set from this client's training goal ({GOAL_LABELS[client.trainingGoal]}). Override it above.</p>
+            )}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat label="Calories" value={plan.calories} unit="kcal" tone="verde" />
               <Stat label="Protein" value={plan.proteinG} unit="g" />

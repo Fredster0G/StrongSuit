@@ -1,17 +1,19 @@
-# STRONGSUIT — BRANDING PLAN v1.0
+# COACHWRIGHT — BRANDING PLAN v1.1
 Prepared 2026-07-16. Companion to `STRONGSUIT_MASTER_SPEC.md` §7 (Ironworks design system) and §9 (commercial notes). This document covers the *market-facing* brand; the spec covers the in-product identity.
+
+> **Rename note (2026-07-16):** the product was renamed **Strongsuit → Coachwright** because "Strongsuit" was already trademarked by an established (~$10M) company. In code the brand lives in one file, `src/lib/brand.ts`; data-level identifiers (IndexedDB name, backup `app` id) intentionally keep the legacy `strongsuit` value so existing data and old backups keep working. Spec filenames still say STRONGSUIT — treat "Strongsuit" in the spec as "Coachwright."
 
 ---
 
 ## 1. Brand foundation
 
-**Name:** Strongsuit — a coach's strong suit is their craft; the software is the suit of armor around their business. One word, ownable, .com-friendly variants (`strongsuit.app`, `getstrongsuit.com`).
+**Name:** **Coachwright** — a "wright" is a craftsperson who *builds* (wheelwright, shipwright, playwright). Coach + wright = the instrument a coach builds their business on. One word, ownable, unmistakably coaching, and it harmonizes with the "Ironworks" design system (a workshop instrument). .com-friendly variants (`coachwright.app`, `getcoachwright.com`).
 
-**Category we create (not join):** *"Coaching software you own."* Never describe Strongsuit as "a TrueCoach alternative" in headline copy — alternatives inherit the category's frame. We sell **ownership**, they rent access.
+**Category we create (not join):** *"Coaching software you own."* Never describe Coachwright as "a TrueCoach alternative" in headline copy — alternatives inherit the category's frame. We sell **ownership**, they rent access.
 
 **One-liner:** *Pay once. Own your coaching business forever.*
 
-**Extended positioning statement:** For independent personal trainers who are tired of renting their own client list back from a SaaS company, Strongsuit is a professional coaching workstation they buy once and own outright — every client, program, and session stored on their machine, not our servers, because we don't have servers.
+**Extended positioning statement:** For independent personal trainers who are tired of renting their own client list back from a SaaS company, Coachwright is a professional coaching workstation they buy once and own outright — every client, program, and session stored on their machine, not our servers, because we don't have servers.
 
 **Brand promise (the three words):** **Owned. Private. Forever.**
 
@@ -30,8 +32,8 @@ Voice implication: talk to them like a fellow tradesperson, never like a startup
 ## 3. Messaging architecture
 
 **Pillar 1 — The math (lead with this).**
-"TrueCoach Pro is ~$1,600/year. Strongsuit is $79. Once."
-Anchor every price mention against the annual rent competitors charge. Build the launch page around an interactive "what you're paying now vs. Strongsuit" calculator — it's on-brand (the Profit Planner inside the product does the same math for their clients' business).
+"TrueCoach Pro is ~$1,600/year. Coachwright is $79. Once."
+Anchor every price mention against the annual rent competitors charge. Build the launch page around an interactive "what you're paying now vs. Coachwright" calculator — it's on-brand (the Profit Planner inside the product does the same math for their clients' business).
 
 **Pillar 2 — The privacy story.**
 "Your client data never leaves your machine. No account. No login. We couldn't read your data if we wanted to — there's nothing to breach."
@@ -41,12 +43,12 @@ This is verifiable (no network calls; auditable Companion files) — invite the 
 "Built like an instrument, not a dashboard." Keyboard-first builder, frame-by-frame Film Room, explainable progression engine, command palette. Demo videos should look like Linear/Figma demos: fast hands, no cursor wandering.
 
 **Pillar 4 — The Companion loop.**
-"Your clients get *your* app — no downloads, no accounts." The Companion file carries the trainer's logo and colors, with a small "Built with Strongsuit" footer (toggleable). Every client is a potential referral surface — this is the organic growth engine; protect its polish above all else.
+"Your clients get *your* app — no downloads, no accounts." The Companion file carries the trainer's logo and colors, with a small "Built with Coachwright" footer (toggleable). Every client is a potential referral surface — this is the organic growth engine; protect its polish above all else.
 
 **Feature naming (keep these names consistent everywhere):**
-- **Film Room** — video analysis (borrowed from athletics culture; instantly understood by coaches)
+- **Film Room** — video analysis + on-device movement tracking (borrowed from athletics culture; instantly understood by coaches)
 - **Companion** — the client-side file
-- **Profit Planner** — the business goal engine
+- **Profit Planner** — the business goal engine (income − the gym's cut − expenses vs. your target)
 - **The Ledger** — payments + expenses view
 - **Ironworks** — the design system (internal, but fine to mention in "how it's built" content)
 
@@ -54,7 +56,7 @@ This is verifiable (no network calls; auditable Companion files) — invite the 
 
 Extends Ironworks (spec §7): jade `#155E4E` + porcelain `#F7F6F3` + ember `#D9730D`. Competitors are blue/black/neon — jade + porcelain is unowned territory and reads "trustworthy instrument."
 
-- **Logo direction:** wordmark in Archivo SemiBold, tightened; optional mark = an "S" formed from a barbell-sleeve cross-section (a circle with a flat notch) — machined, not sporty. No swooshes, no flames, no flexing silhouettes.
+- **Logo direction:** wordmark in Archivo SemiBold, tightened; optional mark = a "C" formed from a barbell-sleeve cross-section (an open ring / collar seen end-on) — machined, not sporty. The collar/"wright's tool" motif reinforces the craftsman story. No swooshes, no flames, no flexing silhouettes.
 - **Marketing typography:** Archivo (display) + Inter (body) + JetBrains Mono for every number that appears in marketing (prices, comparisons, stats) — the mono-numeral signature carries from product to promo.
 - **Photography/art:** real gym environments in natural light, chalk and steel textures; screenshots always in the porcelain UI on subtle noise backgrounds. Never stock "smiling trainer with clipboard."
 - **Banned in marketing (mirrors spec §0):** gradients on purple/indigo, glassmorphism, emoji-as-icons, AI-looking hero illustrations, confetti.

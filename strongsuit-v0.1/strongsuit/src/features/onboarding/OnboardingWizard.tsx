@@ -4,6 +4,7 @@ import { Button, Input, Label, Card } from '@/design'
 import { trainerRepo, clientsRepo } from '@/db/repo'
 import type { Trainer, Client } from '@/db/types'
 import { newId, nowIso } from '@/lib/core'
+import { APP_NAME } from '@/lib/brand'
 
 interface Props {
   trainer: Trainer
@@ -70,7 +71,7 @@ export default function OnboardingWizard({ trainer }: Props) {
         
         {step === 1 && (
           <div className="text-center space-y-6">
-            <h1 className="text-3xl font-display font-bold text-ink">Welcome to Strongsuit</h1>
+            <h1 className="text-3xl font-display font-bold text-ink">Welcome to {APP_NAME}</h1>
             <p className="text-muted text-lg">
               The professional workshop instrument for coaches. Let's get your workspace set up in about 60 seconds.
             </p>
@@ -183,7 +184,7 @@ export default function OnboardingWizard({ trainer }: Props) {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-ink mb-1">Data Ownership</h2>
-              <p className="text-faint text-sm">Strongsuit is local-first software.</p>
+              <p className="text-faint text-sm">{APP_NAME} is local-first software.</p>
             </div>
 
             <div className="bg-amber-50 dark:bg-amber-950/20 p-5 rounded-xl border border-amber-200 dark:border-amber-900/50">

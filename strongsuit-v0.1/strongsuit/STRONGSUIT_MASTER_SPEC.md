@@ -1,5 +1,7 @@
 # STRONGSUIT — Master Build Specification v1.0
 ### The Pay-Once Coaching Platform for Personal Trainers
+
+> **⚠️ PRODUCT RENAMED (2026-07-16): Strongsuit → Coachwright.** "Strongsuit" was trademarked by another company. Everywhere this document says "Strongsuit," read **Coachwright**. In code the name lives only in `src/lib/brand.ts`; data-level identifiers (IndexedDB name, backup `app` id) deliberately keep the legacy `strongsuit` value so existing data and pre-rename backups keep working. This spec's filename is unchanged to avoid churn.
 **Document type:** Direct AI code-generation blueprint. This document is written to be handed to an AI model (Claude Opus/Sonnet, Gemini, GPT) as the authoritative source of truth for a full production build. Every section is normative unless marked "optional."
 
 ---
@@ -306,6 +308,7 @@ This one feature converts the platform's biggest weakness (no cloud) into its mo
 The S-tier differentiator: frame-by-frame movement analysis with zero cloud. `src/features/filmroom/FilmRoomPage.tsx`, route `/film-room`.
 - Two clips (Client / Reference) loaded from local files via object URLs. **Videos are never persisted or uploaded** — session-only, stated in the UI.
 - Modes: side-by-side, or overlay with a blend-opacity slider (requires both clips).
+- **Dual controls (BUILT S8):** in side-by-side, each clip gets its OWN transport (play/pause, ±1 frame, scrubber, time) via the `useClip` controller hook + `TransportBar` — control them independently to line up the same moment in each. Locking sync (or overlay mode) collapses to a single master "Both — synced" bar that drives both at the stored offset (`linked` state). **Flip client/ref** mirrors a clip horizontally (`mirrorA/mirrorB`) so opposite-facing lifters align. Keyboard (Space/←/→) drives the master/client; independent Reference bar is mouse-only (debt).
 - Transport: shared play/pause, playback rate 0.25/0.5/1×, frame-step ±1 (`←`/`→`, `⇧` = ×5) driven by a user-selectable assumed frame rate (24/30/60/120 — browsers don't expose true fps).
 - **Sync lock:** scrub both clips to the same moment (e.g. start of descent) → "Lock sync here" stores the time offset; all seeks/steps/plays keep B glued to A.
 - **Annotations:** SVG layer over the stage. Line tool (2 clicks — bar path, back angle) and Angle tool (3 clicks, vertex second; degrees computed in pixel space so aspect ratio doesn't distort the measurement). Ember stroke, mono degree labels. Clear-all. Points stored in percent coords so they survive resize.
@@ -342,6 +345,9 @@ NOT a food database (§1.4 stands) — a deterministic targets engine in `src/li
 
 ### 4.18 Nutrition full module (P2, NOT BUILT — v2 paid expansion candidate)
 Food logging/habit checklist beyond targets; still NO food database licensing. Habits piggyback on CheckIn answers.
+
+### 4.20 In-app Guide & tutorial (BUILT S8)
+`src/features/settings/Guide.tsx`, rendered on the Settings page under the Brand kit. 11 collapsible `<details>` sections (native, accessible, zero-dep) covering the whole app in brand voice: the big idea, brand/clients, program builder, logging, a full Film Room walkthrough (both-video controls, sync, flip, frame-step, annotations, tracking metrics explained), nutrition, readiness, business/profit/gym-cut, Companion, backups, keyboard shortcuts, privacy/how-it-works. **Rule for future work:** ship a feature → add/adjust its Guide section. The manual ships inside the app (offline).
 
 ### 4.19 Coaching message log (P2, NOT BUILT)
 Serverless "messaging": a per-client timestamped log of coaching notes/voice-of-coach entries the trainer writes, exportable as a branded text/HTML digest to send manually, and includable in the Companion export as a read-only "From your coach" feed. Return-path replies ride the existing `.ssdata` check-in loop. This answers the "no messaging" objection without violating the zero-backend doctrine.

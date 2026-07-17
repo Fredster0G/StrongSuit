@@ -2,13 +2,15 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   LayoutDashboard, Users, ClipboardList, Dumbbell, Clapperboard,
-  CalendarDays, Wallet, BarChart3, Settings, ShieldCheck, ShieldAlert, Loader2
+  CalendarDays, Wallet, BarChart3, Settings, ShieldCheck, ShieldAlert, Loader2, RadioTower
 } from 'lucide-react'
 import { trainerRepo } from '@/db/repo'
 import { daysSince } from '@/lib/core'
+import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
 import { Toaster } from '@/design'
 import CommandPalette from '@/features/shell/CommandPalette'
 import OnboardingWizard from '@/features/onboarding/OnboardingWizard'
+import EulaScreen from '@/features/onboarding/EulaScreen'
 
 const NAV = [
   { to: '/', label: 'Today', icon: LayoutDashboard, end: true },
@@ -18,6 +20,7 @@ const NAV = [
   { to: '/film-room', label: 'Film Room', icon: Clapperboard },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/business', label: 'Business', icon: Wallet },
+  { to: '/sync', label: 'Studio Link', icon: RadioTower },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
 ]
 
@@ -42,9 +45,9 @@ function BackupHealth() {
 }
 
 export default function Shell() {
-  const trainer = useLiveQuery(() => trainerRepo.getOrCreate(), [], null)
+  const trainer = useLiveQuery(() => trainerRepo.get(), [], null)
 
-  if (trainer === null) {
+  if (!trainer) {
     return <div className="h-screen flex items-center justify-center bg-bg"><Loader2 className="animate-spin text-faint" /></div>
   }
 
@@ -52,12 +55,16 @@ export default function Shell() {
     return <OnboardingWizard trainer={trainer} />
   }
 
+  if (!trainer.eulaAcceptedAt) {
+    return <EulaScreen trainer={trainer} />
+  }
+
   return (
     <div className="flex h-full">
       <aside className="flex w-52 shrink-0 flex-col border-r border-line bg-surface">
         <div className="px-4 pb-4 pt-5">
-          <p className="font-display text-base font-bold tracking-tight text-ink">Strongsuit</p>
-          <p className="text-2xs text-faint">Coaching workstation</p>
+          <p className="font-display text-base font-bold tracking-tight text-ink">{APP_NAME}</p>
+          <p className="text-2xs text-faint">{APP_TAGLINE}</p>
         </div>
         <nav className="flex-1 space-y-0.5 px-2">
           {NAV.map(({ to, label, icon: Icon, end }) => (

@@ -4,8 +4,10 @@ import { ShieldCheck, Upload, Download } from 'lucide-react'
 import { trainerRepo } from '@/db/repo'
 import { exportBackup, importBackup, isEncryptedBackup, downloadText, type ImportMode } from '@/db/backup'
 import { fullName, nowIso } from '@/lib/core'
+import { BACKUP_ACCEPT } from '@/lib/brand'
 import { Button, Card, SectionHeader, Field, Input, Select, toast, toastError, Dialog } from '@/design'
 import { clientsRepo } from '@/db/repo'
+import Guide from './Guide'
 
 function BrandCard() {
   const trainer = useLiveQuery(() => trainerRepo.get())
@@ -155,7 +157,7 @@ function RestoreCard() {
         <input
           ref={fileRef}
           type="file"
-          accept=".strongsuit,application/json"
+          accept={BACKUP_ACCEPT}
           className="hidden"
           onChange={e => e.target.files?.[0] && onFile(e.target.files[0])}
         />
@@ -244,6 +246,7 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <SectionHeader title="Settings" />
       <BrandCard />
+      <Guide />
       <BackupCard />
       <RestoreCard />
       <DataCard />

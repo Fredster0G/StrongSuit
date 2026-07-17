@@ -74,90 +74,6 @@ function SkeletonOverlay({ landmarks, videoRef }: {
   )
 }
 
-/** Per-clip transport: play/step/scrub one video independently. Self-contained —
- *  binds its own listeners so each clip gets real controls, not shared state. */
-function MiniTransport({ videoRef, fps, depKey, onAfterChange, extra }: {
-  videoRef: React.RefObject<HTMLVideoElement | null>
-  fps: number
-  depKey: string            // clip url — re-binds when the clip changes
-  onAfterChange?: () => void // e.g. keep B glued to A while synced
-  extra?: React.ReactNode
-}) {
-  const [time, setTime] = useState(0)
-  const [dur, setDur] = useState(0)
-  const [playing, setPlaying] = useState(false)
-
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
-    const onTime = () => setTime(v.currentTime)
-    const onMeta = () => setDur(v.duration || 0)
-    const onPlay = () => setPlaying(true)
-    const onPause = () => setPlaying(false)
-    v.addEventListener('timeupdate', onTime)
-    v.addEventListener('seeked', onTime)
-    v.addEventListener('loadedmetadata', onMeta)
-    v.addEventListener('play', onPlay)
-    v.addEventListener('pause', onPause)
-    if (v.duration) setDur(v.duration)
-    setTime(v.currentTime)
-    setPlaying(!v.paused)
-    return () => {
-      v.removeEventListener('timeupdate', onTime)
-      v.removeEventListener('seeked', onTime)
-      v.removeEventListener('loadedmetadata', onMeta)
-      v.removeEventListener('play', onPlay)
-      v.removeEventListener('pause', onPause)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depKey])
-
-  const move = (t: number) => {
-    const v = videoRef.current
-    if (!v) return
-    v.currentTime = Math.min(Math.max(0, t), v.duration || Infinity)
-    setTime(v.currentTime)
-    onAfterChange?.()
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <button
-        onClick={() => {
-          const v = videoRef.current
-          if (!v) return
-          if (v.paused) void v.play(); else v.pause()
-        }}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-ctl text-muted hover:bg-surface2 hover:text-ink"
-        title={playing ? 'Pause this clip' : 'Play this clip'}
-      >
-        {playing ? <Pause size={12} /> : <Play size={12} />}
-      </button>
-      <button
-        onClick={() => { videoRef.current?.pause(); move(time - 1 / fps) }}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-ctl text-muted hover:bg-surface2 hover:text-ink"
-        title="Back one frame"
-      >
-        <ChevronLeft size={12} />
-      </button>
-      <button
-        onClick={() => { videoRef.current?.pause(); move(time + 1 / fps) }}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-ctl text-muted hover:bg-surface2 hover:text-ink"
-        title="Forward one frame"
-      >
-        <ChevronRight size={12} />
-      </button>
-      <input
-        type="range" min={0} max={dur || 0} step={1 / fps} value={time}
-        onChange={e => move(Number(e.target.value))}
-        className="min-w-0 flex-1 accent-[var(--verde-600)]"
-      />
-      <span className="font-mono tnum text-2xs text-faint">{fmtTime(time)}</span>
-      {extra}
-    </div>
-  )
-}
-
 function VideoPane({ label, clip, onPick, videoRef, onScrub, muted = true, overlay, footer, mirrored }: {
   label: string
   clip: Clip | null
@@ -201,7 +117,7 @@ function VideoPane({ label, clip, onPick, videoRef, onScrub, muted = true, overl
             src={clip.url}
             muted={muted}
             playsInline
-            className="max-h-[420px] w-full object-contain"
+            className={`max-h-[420px] w-full object-contain ${mirrored ? '-scale-x-100' : ''}`}
             onSeeked={e => onScrub?.((e.target as HTMLVideoElement).currentTime)}
           />
           {overlay}
@@ -216,8 +132,101 @@ function VideoPane({ label, clip, onPick, videoRef, onScrub, muted = true, overl
           <span className="text-2xs text-faint">Stays on this device — never uploaded</span>
         </button>
       )}
+      {clip && footer}
       {clip && <p className="truncate text-2xs text-faint" title={clip.name}>{clip.name}</p>}
     </div>
+  )
+}
+
+/** Per-video transport state + controls. Binds to whatever <video> the ref
+ *  currently points at; re-binds when the clip (src) changes. */
+function useClip(
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  clipKey: string | undefined,
+  fps: number,
+) {
+  const [time, setTime] = useState(0)
+  const [dur, setDur] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const onTime = () => setTime(v.currentTime)
+    const onMeta = () => setDur(v.duration || 0)
+    const onPlay = () => setPlaying(true)
+    const onPause = () => setPlaying(false)
+    v.addEventListener('timeupdate', onTime)
+    v.addEventListener('seeked', onTime)
+    v.addEventListener('loadedmetadata', onMeta)
+    v.addEventListener('play', onPlay)
+    v.addEventListener('pause', onPause)
+    setTime(v.currentTime); if (v.duration) setDur(v.duration); setPlaying(!v.paused)
+    return () => {
+      v.removeEventListener('timeupdate', onTime)
+      v.removeEventListener('seeked', onTime)
+      v.removeEventListener('loadedmetadata', onMeta)
+      v.removeEventListener('play', onPlay)
+      v.removeEventListener('pause', onPause)
+    }
+  }, [videoRef, clipKey])
+  const toggle = useCallback(() => {
+    const v = videoRef.current; if (!v) return
+    if (v.paused) void v.play(); else v.pause()
+  }, [videoRef])
+  const step = useCallback((frames: number) => {
+    const v = videoRef.current; if (!v) return
+    v.pause()
+    v.currentTime = Math.min(Math.max(0, v.currentTime + frames / fps), v.duration || Infinity)
+  }, [videoRef, fps])
+  const seek = useCallback((t: number) => {
+    const v = videoRef.current; if (!v) return
+    v.currentTime = t
+  }, [videoRef])
+  return { time, dur, playing, toggle, step, seek }
+}
+
+/** One transport row: play/pause, frame step, scrubber, time readout. */
+function TransportBar({ label, time, dur, playing, fps, onToggle, onStep, onSeek, hints, accent }: {
+  label?: string
+  time: number
+  dur: number
+  playing: boolean
+  fps: number
+  onToggle: () => void
+  onStep: (frames: number) => void
+  onSeek: (t: number) => void
+  hints?: boolean
+  accent?: 'verde' | 'slate'
+}) {
+  return (
+    <Card pad={false} className="flex items-center gap-2 px-3 py-2">
+      {label && (
+        <span className={`shrink-0 text-2xs font-semibold uppercase tracking-wide ${accent === 'slate' ? 'text-[var(--chart-3)]' : 'text-verde-600'}`}>
+          {label}
+        </span>
+      )}
+      <Button size="sm" variant="primary" onClick={onToggle} aria-label={playing ? 'Pause' : 'Play'}>
+        {playing ? <Pause size={14} /> : <Play size={14} />}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => onStep(-1)} title="Back one frame" aria-label="Back one frame">
+        <ChevronLeft size={14} />
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => onStep(1)} title="Forward one frame" aria-label="Forward one frame">
+        <ChevronRight size={14} />
+      </Button>
+      <input
+        type="range" min={0} max={dur || 0} step={1 / fps} value={time}
+        onChange={e => onSeek(Number(e.target.value))}
+        aria-label="Scrub"
+        className="min-w-0 flex-1 accent-[var(--verde-600)]"
+      />
+      <span className="font-mono tnum text-xs text-muted">{fmtTime(time)} / {fmtTime(dur)}</span>
+      {hints && (
+        <span className="hidden items-center gap-1 text-2xs text-faint lg:flex">
+          <Kbd>Space</Kbd><Kbd>←</Kbd><Kbd>→</Kbd>
+        </span>
+      )}
+    </Card>
   )
 }
 
@@ -232,10 +241,9 @@ export default function FilmRoomPage() {
   const [opacity, setOpacity] = useState(0.5)
   const [fps, setFps] = useState(30)
   const [speed, setSpeed] = useState(1)
-  const [playing, setPlaying] = useState(false)
   const [syncOffset, setSyncOffset] = useState<number | null>(null) // B time − A time
-  const [timeA, setTimeA] = useState(0)
-  const [durA, setDurA] = useState(0)
+  const [mirrorA, setMirrorA] = useState(false)
+  const [mirrorB, setMirrorB] = useState(false)
   const [tool, setTool] = useState<Tool>('off')
   const [shapes, setShapes] = useState<Shape[]>([])
   const [draft, setDraft] = useState<Pt[]>([])
@@ -343,27 +351,23 @@ export default function FilmRoomPage() {
   useEffect(() => () => { if (clipA) URL.revokeObjectURL(clipA.url) }, [clipA])
   useEffect(() => () => { if (clipB) URL.revokeObjectURL(clipB.url) }, [clipB])
 
-  // keep B glued to A when sync is locked
+  // per-video transport controllers (each drives its own <video>)
+  const A = useClip(videoA, clipA?.url, fps)
+  const B = useClip(videoB, clipB?.url, fps)
+
+  // Two clips are "linked" when overlaid or sync-locked: one transport drives
+  // both, holding B at A's time plus the locked offset (0 in overlay).
+  const effectiveOffset = syncOffset !== null
+    ? syncOffset
+    : (mode === 'overlay' && clipA && clipB ? 0 : null)
+  const linked = effectiveOffset !== null && !!clipB
+
   const alignB = useCallback(() => {
     const a = videoA.current, b = videoB.current
-    if (a && b && syncOffset !== null) {
-      b.currentTime = Math.max(0, a.currentTime + syncOffset)
+    if (a && b && effectiveOffset !== null) {
+      b.currentTime = Math.max(0, a.currentTime + effectiveOffset)
     }
-  }, [syncOffset])
-
-  useEffect(() => {
-    const a = videoA.current
-    if (!a) return
-    const onTime = () => { setTimeA(a.currentTime); }
-    const onMeta = () => setDurA(a.duration || 0)
-    a.addEventListener('timeupdate', onTime)
-    a.addEventListener('loadedmetadata', onMeta)
-    if (a.duration) setDurA(a.duration)
-    return () => {
-      a.removeEventListener('timeupdate', onTime)
-      a.removeEventListener('loadedmetadata', onMeta)
-    }
-  }, [clipA])
+  }, [effectiveOffset])
 
   useEffect(() => {
     for (const v of [videoA.current, videoB.current]) if (v) v.playbackRate = speed
@@ -380,29 +384,33 @@ export default function FilmRoomPage() {
     return () => ro.disconnect()
   }, [clipA, mode])
 
-  const togglePlay = useCallback(() => {
+  // master transport = drives A, and B too when the clips are linked
+  const masterToggle = useCallback(() => {
     const a = videoA.current, b = videoB.current
     if (!a) return
     if (a.paused) {
       alignB()
       void a.play()
-      if (b && syncOffset !== null) void b.play()
-      setPlaying(true)
+      if (b && linked) void b.play()
     } else {
-      a.pause(); b?.pause()
-      setPlaying(false)
+      a.pause(); if (linked) b?.pause()
     }
-  }, [alignB, syncOffset])
+  }, [alignB, linked])
 
-  const step = useCallback((frames: number) => {
+  const masterStep = useCallback((frames: number) => {
     const a = videoA.current
     if (!a) return
-    a.pause(); videoB.current?.pause()
-    setPlaying(false)
+    a.pause(); if (linked) videoB.current?.pause()
     a.currentTime = Math.min(Math.max(0, a.currentTime + frames / fps), a.duration || Infinity)
     alignB()
-    setTimeA(a.currentTime)
-  }, [fps, alignB])
+  }, [fps, alignB, linked])
+
+  const masterSeek = useCallback((t: number) => {
+    const a = videoA.current
+    if (!a) return
+    a.currentTime = t
+    alignB()
+  }, [alignB])
 
   const lockSync = () => {
     const a = videoA.current, b = videoB.current
@@ -415,13 +423,13 @@ export default function FilmRoomPage() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return
-      if (e.key === ' ') { e.preventDefault(); togglePlay() }
-      if (e.key === 'ArrowRight') { e.preventDefault(); step(e.shiftKey ? 5 : 1) }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); step(e.shiftKey ? -5 : -1) }
+      if (e.key === ' ') { e.preventDefault(); masterToggle() }
+      if (e.key === 'ArrowRight') { e.preventDefault(); masterStep(e.shiftKey ? 5 : 1) }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); masterStep(e.shiftKey ? -5 : -1) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, step])
+  }, [masterToggle, masterStep])
 
   const onStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (tool === 'off') return
@@ -553,6 +561,17 @@ export default function FilmRoomPage() {
               )
             )}
 
+            {clipA && (
+              <Button size="sm" variant={mirrorA ? 'primary' : 'ghost'} onClick={() => setMirrorA(m => !m)} title="Flip the client video horizontally — useful when the two clips are filmed from opposite sides">
+                <FlipHorizontal2 size={14} /> Flip client
+              </Button>
+            )}
+            {clipB && (
+              <Button size="sm" variant={mirrorB ? 'primary' : 'ghost'} onClick={() => setMirrorB(m => !m)} title="Flip the reference video horizontally">
+                <FlipHorizontal2 size={14} /> Flip ref
+              </Button>
+            )}
+
             <div className="ml-auto flex items-center gap-1">
               <Button size="sm" variant={tool === 'line' ? 'primary' : 'ghost'} onClick={() => { setTool(tool === 'line' ? 'off' : 'line'); setDraft([]) }} title="Draw a line: click two points (bar path, back angle)">
                 <Slash size={14} /> Line
@@ -566,28 +585,32 @@ export default function FilmRoomPage() {
             </div>
           </Card>
 
-          {/* Stage */}
+          {/* Stage — videos only; annotations overlay this, transports sit below */}
           <div
             ref={stageRef}
             onClick={onStageClick}
             className={`relative ${tool !== 'off' ? 'cursor-crosshair' : ''}`}
           >
             {mode === 'side' ? (
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row">
                 <VideoPane
-                  label="Client video" clip={clipA} onPick={pick(setClipA)} videoRef={videoA} onScrub={setTimeA}
+                  label="Client video" clip={clipA} onPick={pick(setClipA)} videoRef={videoA}
+                  mirrored={mirrorA}
                   overlay={tracking === 'on' ? <SkeletonOverlay landmarks={pose} videoRef={videoA} /> : null}
                 />
-                <VideoPane label="Reference video" clip={clipB} onPick={pick(setClipB)} videoRef={videoB} />
+                <VideoPane
+                  label="Reference video" clip={clipB} onPick={pick(setClipB)} videoRef={videoB}
+                  mirrored={mirrorB}
+                />
               </div>
             ) : (
               <div className="overflow-hidden rounded-card border border-line bg-iron-950">
                 <div className="relative">
-                  <video ref={videoA} src={clipA?.url} muted playsInline className="max-h-[520px] w-full object-contain" />
+                  <video ref={videoA} src={clipA?.url} muted playsInline className={`max-h-[520px] w-full object-contain ${mirrorA ? '-scale-x-100' : ''}`} />
                   <video
                     ref={videoB} src={clipB?.url} muted playsInline
                     style={{ opacity }}
-                    className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+                    className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${mirrorB ? '-scale-x-100' : ''}`}
                   />
                   {tracking === 'on' && <SkeletonOverlay landmarks={pose} videoRef={videoA} />}
                 </div>
@@ -596,37 +619,29 @@ export default function FilmRoomPage() {
             {annotations}
           </div>
 
-          {/* Transport */}
-          {clipA && (
-            <Card pad={false} className="flex items-center gap-3 px-3 py-2">
-              <Button size="sm" variant="primary" onClick={togglePlay}>
-                {playing ? <Pause size={14} /> : <Play size={14} />}
-                {playing ? 'Pause' : 'Play'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => step(-1)} title="Back one frame (←)">
-                <ChevronLeft size={14} /> Frame
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => step(1)} title="Forward one frame (→)">
-                Frame <ChevronRight size={14} />
-              </Button>
-              <input
-                type="range" min={0} max={durA || 0} step={1 / fps} value={timeA}
-                onChange={e => {
-                  const a = videoA.current
-                  if (!a) return
-                  a.currentTime = Number(e.target.value)
-                  alignB()
-                  setTimeA(a.currentTime)
-                }}
-                className="min-w-0 flex-1 accent-[var(--verde-600)]"
-              />
-              <span className="font-mono tnum text-xs text-muted">
-                {fmtTime(timeA)} / {fmtTime(durA)}
-              </span>
-              <span className="hidden items-center gap-1 text-2xs text-faint sm:flex">
-                <Kbd>Space</Kbd> play · <Kbd>←</Kbd><Kbd>→</Kbd> frame · <Kbd>⇧</Kbd> ×5
-              </span>
-            </Card>
+          {/* Transport — one bar per video, or a single master bar when linked */}
+          {(clipA || clipB) && (
+            <div className="space-y-2">
+              {clipA && (
+                <TransportBar
+                  label={linked ? 'Both — synced' : (clipB ? 'Client' : undefined)} hints
+                  time={A.time} dur={A.dur} playing={A.playing} fps={fps}
+                  onToggle={masterToggle} onStep={masterStep} onSeek={masterSeek}
+                />
+              )}
+              {clipB && !linked && (
+                <TransportBar
+                  label={clipA ? 'Reference' : undefined} accent="slate"
+                  time={B.time} dur={B.dur} playing={B.playing} fps={fps}
+                  onToggle={B.toggle} onStep={B.step} onSeek={B.seek}
+                />
+              )}
+              {clipA && clipB && linked && (
+                <p className="flex items-center gap-1.5 px-1 text-2xs text-faint">
+                  <Link2 size={12} className="text-verde-600" /> Reference is locked to the client video — the bar above scrubs both. Unlock sync to control them separately.
+                </p>
+              )}
+            </div>
           )}
 
           {tool === 'angle' && (

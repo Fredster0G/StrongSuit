@@ -1,7 +1,7 @@
 import { db } from '../schema'
 import { makeRepo } from './base'
 import { newId, nowIso, stamp } from '@/lib/core'
-import type { Trainer, Client, ClientNote, Program, SessionLog, Metric } from '../types'
+import type { Trainer, Client, ClientNote, Program, SessionLog, Metric, Waiver, Device, CoachMessage } from '../types'
 
 // ---------- trainer (singleton) ----------
 const TRAINER_ID = 'trainer'
@@ -40,7 +40,7 @@ export const clientsRepo = {
   },
   /** Hard delete (Settings → Data only): removes client + all child rows. */
   async hardDelete(id: string) {
-    await db.transaction('rw', [db.clients, db.clientNotes, db.programs, db.sessionLogs, db.checkIns, db.metrics, db.payments, db.appointments], async () => {
+    await db.transaction('rw', [db.clients, db.clientNotes, db.programs, db.sessionLogs, db.checkIns, db.metrics, db.payments, db.appointments, db.waivers], async () => {
       await db.clientNotes.where('clientId').equals(id).delete()
       await db.programs.where('clientId').equals(id).delete()
       await db.sessionLogs.where('clientId').equals(id).delete()
@@ -48,6 +48,7 @@ export const clientsRepo = {
       await db.metrics.where('clientId').equals(id).delete()
       await db.payments.where('clientId').equals(id).delete()
       await db.appointments.where('clientId').equals(id).delete()
+      await db.waivers.where('clientId').equals(id).delete()
       await db.clients.delete(id)
     })
   },
@@ -141,5 +142,38 @@ export const metricsRepo = {
   }
 }
 export const paymentsRepo = makeRepo(db.payments)
-export const appointmentsRepo = makeRepo(db.appointments)
+export const appointmentsRepo = {
+  ...makeRepo(db.appointments),
+  /** All series masters + one-offs (occurrences are expanded at read time). */
+  async masters() {
+    return db.appointments.toArray()
+  },
+}
 export const expensesRepo = makeRepo(db.expenses)
+
+// ---------- waivers (liability audit trail) ----------
+export const waiversRepo = {
+  ...makeRepo<Waiver>(db.waivers),
+  async forClient(clientId: string) {
+    return db.waivers.where('clientId').equals(clientId).reverse().sortBy('signedDate')
+  },
+}
+
+// ---------- paired sync devices ----------
+export const devicesRepo = {
+  ...makeRepo<Device>(db.devices),
+  async all() {
+    return db.devices.toArray()
+  },
+  async forClient(clientId: string) {
+    return db.devices.where('clientId').equals(clientId).first()
+  },
+}
+
+// ---------- messages ----------
+export const messagesRepo = {
+  ...makeRepo<CoachMessage>(db.messages),
+  async forClient(clientId: string) {
+    return db.messages.where('clientId').equals(clientId).reverse().sortBy('date')
+  },
+}

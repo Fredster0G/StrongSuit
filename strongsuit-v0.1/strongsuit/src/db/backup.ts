@@ -2,10 +2,13 @@ import { db, ALL_TABLES, SCHEMA_VERSION, type TableName } from './schema'
 import type { BackupEnvelope } from './types'
 import { makeRepo } from './repo/base'
 import type { Base } from './types'
+import { APP_NAME, BACKUP_APP_ID, BACKUP_APP_ID_LEGACY, BACKUP_FILE_PREFIX, BACKUP_EXT } from '@/lib/brand'
 
 // ============ crypto (Web Crypto, spec §2.5.2) ============
 const PBKDF2_ITERATIONS = 310_000
-const MAGIC = 'SSENC1' // encrypted-file header magic
+const MAGIC = 'CWENC1'          // encrypted-file header magic (Coachwright)
+const MAGIC_LEGACY = 'SSENC1'   // pre-rename files still open
+const isMagic = (m: string) => m === MAGIC || m === MAGIC_LEGACY
 
 const enc = new TextEncoder()
 const dec = new TextDecoder()
@@ -41,7 +44,7 @@ export async function encryptText(plaintext: string, passphrase: string): Promis
 
 export async function decryptText(fileText: string, passphrase: string): Promise<string> {
   const [magic, saltB64, ivB64, ctB64] = fileText.split('\n')
-  if (magic !== MAGIC) throw new Error('Not an encrypted Strongsuit backup.')
+  if (!isMagic(magic)) throw new Error(`Not an encrypted ${APP_NAME} backup.`)
   const key = await deriveKey(passphrase, unb64(saltB64))
   try {
     const pt = await crypto.subtle.decrypt(
@@ -53,7 +56,8 @@ export async function decryptText(fileText: string, passphrase: string): Promise
   }
 }
 
-export const isEncryptedBackup = (text: string) => text.startsWith(MAGIC + '\n')
+export const isEncryptedBackup = (text: string) =>
+  text.startsWith(MAGIC + '\n') || text.startsWith(MAGIC_LEGACY + '\n')
 
 // ============ export ============
 export async function buildEnvelope(): Promise<BackupEnvelope> {
@@ -63,7 +67,7 @@ export async function buildEnvelope(): Promise<BackupEnvelope> {
     ;(data as any)[name] = await (db as any)[name].toArray()
   }
   return {
-    app: 'strongsuit',
+    app: BACKUP_APP_ID,
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     encrypted: false,
@@ -75,10 +79,11 @@ export async function exportBackup(passphrase?: string): Promise<{ filename: str
   const envelope = await buildEnvelope()
   const json = JSON.stringify(envelope)
   const stampStr = envelope.exportedAt.slice(0, 10)
+  const filename = `${BACKUP_FILE_PREFIX}-${stampStr}${BACKUP_EXT}`
   if (passphrase) {
-    return { filename: `strongsuit-backup-${stampStr}.strongsuit`, text: await encryptText(json, passphrase) }
+    return { filename, text: await encryptText(json, passphrase) }
   }
-  return { filename: `strongsuit-backup-${stampStr}.strongsuit`, text: json }
+  return { filename, text: json }
 }
 
 // ============ import ============
@@ -94,12 +99,13 @@ export function parseEnvelope(text: string): BackupEnvelope {
   try {
     obj = JSON.parse(text)
   } catch {
-    throw new Error("This file isn't a Strongsuit backup.")
+    throw new Error(`This file isn't a ${APP_NAME} backup.`)
   }
   const env = obj as BackupEnvelope
-  if (env?.app !== 'strongsuit' || !env.data) throw new Error("This file isn't a Strongsuit backup.")
+  const known = env?.app === BACKUP_APP_ID || env?.app === BACKUP_APP_ID_LEGACY
+  if (!known || !env.data) throw new Error(`This file isn't a ${APP_NAME} backup.`)
   if (env.schemaVersion > SCHEMA_VERSION) {
-    throw new Error('This backup was made with a newer version of Strongsuit. Update the app, then import again.')
+    throw new Error(`This backup was made with a newer version of ${APP_NAME}. Update the app, then import again.`)
   }
   return env
 }
@@ -138,7 +144,7 @@ export async function panicDump(): Promise<string> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       try { out[name] = await (db as any)[name].toArray() } catch { out[name] = [] }
     }
-    return JSON.stringify({ app: 'strongsuit', panic: true, data: out })
+    return JSON.stringify({ app: BACKUP_APP_ID, panic: true, data: out })
   }
 }
 

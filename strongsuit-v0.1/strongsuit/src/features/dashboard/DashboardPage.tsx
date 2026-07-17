@@ -5,6 +5,7 @@ import { Plus, ClipboardList, FileDown, CheckCircle2, Circle, PenLine, ChevronRi
 import { clientsRepo, trainerRepo } from '@/db/repo'
 import { db } from '@/db/schema'
 import { daysSince, fullName } from '@/lib/core'
+import { APP_NAME } from '@/lib/brand'
 import { Card, SectionHeader, Button, EmptyState, Tag } from '@/design'
 
 function ChecklistItem({ done, label, to }: { done: boolean; label: string; to: string }) {
@@ -56,7 +57,7 @@ export default function DashboardPage() {
       {!setupDone && (
         <Card>
           <p className="mb-1 font-display text-base font-semibold">Get set up</p>
-          <p className="mb-3 text-xs text-muted">Three steps and Strongsuit is fully yours. No account needed — there isn't one.</p>
+          <p className="mb-3 text-xs text-muted">Three steps and {APP_NAME} is fully yours. No account needed — there isn't one.</p>
           <div className="space-y-0.5">
             <ChecklistItem done={hasBrand} label="Add your business name & brand" to="/settings" />
             <ChecklistItem done={hasClient} label="Add your first client" to="/clients" />

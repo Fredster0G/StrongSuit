@@ -46,7 +46,7 @@ export async function initTracker(): Promise<Landmarker> {
     } catch (err) {
       initPromise = null
       throw new Error(
-        "Couldn't start movement tracking — the tracking model files are missing from this build. Reinstall Strongsuit, then try again.",
+        "Couldn't start movement tracking — the tracking model files are missing from this build. Reinstall Coachwright, then try again.",
         { cause: err },
       )
     }

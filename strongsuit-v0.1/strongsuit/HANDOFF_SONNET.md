@@ -41,6 +41,14 @@ src/features/filmroom/tracker.ts  MediaPipe PoseLandmarker wrapper. LAZY dynamic
 src/lib/nutrition.ts  Nutrition engine (spec §4.18a) + warmupRamp. Every output has {text, source}.
 src/lib/readiness.ts  Readiness score (spec §4.18b). Check-in mood/energy are 1–10 scales.
 src/features/clients/NutritionTab.tsx  Client nutrition tab (profile fields live on Client, unindexed).
+src/lib/brand.ts      SINGLE SOURCE OF TRUTH for the product name (Coachwright) + backup format ids.
+                      User-facing strings import from here. NEVER hardcode "Coachwright"/"Strongsuit"
+                      in a component. Data-level ids (DB_NAME, BACKUP_APP_ID_LEGACY) keep 'strongsuit'
+                      for backward compat — do not repoint without a migration.
+src/features/settings/Guide.tsx  In-app manual (11 accordion sections). Add a section when you ship a feature.
+Film Room dual controls: `useClip(ref, clipKey, fps)` = per-video transport state; `TransportBar` =
+                      one control row. `linked` (overlay or sync-locked) → one master bar drives both;
+                      else Client + Reference get independent bars. `mirrorA/mirrorB` = horizontal flip.
 ```
 ★ = brand signature elements (spec §7.4). Use them; don't invent parallel patterns.
 
@@ -57,6 +65,7 @@ src/features/clients/NutritionTab.tsx  Client nutrition tab (profile fields live
 - Evidence rule (extends the reason rule): any AI/nutrition/readiness output shows its rationale AND source citation in the UI. New engines must follow `RationaleLine {text, source}`.
 - On-device AI rule: no API keys, no external model hosts, ever. Models ship in `public/` at build time; heavy runtimes load via lazy `import()` behind an explicit user action; detection loops ride presented-frame callbacks, never `setInterval`.
 - ALWAYS run npm/vitest/build from `strongsuit-v0.1/strongsuit/` — running from the repo root half-works (files resolve, aliases don't) and once scattered npm artifacts at the root (fixed in S7).
+- Brand rule: the product is **Coachwright**. Never hardcode the name — import from `src/lib/brand.ts`. Data-level ids stay `strongsuit` for backward compat (see the file's warning). When you add a user-facing surface, pull the name from brand.ts and add a Guide section for the feature.
 
 ## 4. YOUR TASK QUEUE (in order — do not reorder; spec § refs are the contract)
 
@@ -71,11 +80,12 @@ c. Use the policy (not the heuristic) for duplicate-week auto-progression in the
 ### T3 — Coaching message log (spec §4.19 — answers the "no messaging" objection)
 New entity `CoachMessage { clientId, date, body }` (Dexie v4 — APPEND version; bump envelope SCHEMA_VERSION to 3 and add table to ALL_TABLES + BackupEnvelope, mirroring how S6 added expenses). Per-client "Messages" tab: timestamped log, exportable branded HTML digest (reuse companion/export.ts brand-injection pattern), optional read-only "From your coach" section in the Companion export.
 
-### T4 — Film Room + tracking polish (spec §4.16/4.16b — core is BUILT)
+### T4 — Film Room + tracking polish (spec §4.16/4.16b — core + dual controls BUILT in S8)
+Done: independent per-video transports, sync-lock master bar, flip client/ref, full Guide walkthrough.
 a. **Manual QA with real phone footage first** (portrait, 60fps, squat + press): verify skeleton alignment, sync-lock accuracy, and rep-counter thresholds (debt #10) — tune `RepCounter` constants or add One-Euro smoothing in `lib/pose.ts` if jittery; thresholds are unit-tested so tune tests alongside.
 b. Per-rep results table + "copy to session notes"; PNG snapshot export of stage+annotations.
 c. Reference-clip tracking + client-vs-reference angle deltas (the killer demo).
-d. Register `/film-room` in CommandPalette. Keep videos session-only.
+d. Register `/film-room` in CommandPalette; give the independent Reference bar keyboard control (debt #13). Keep videos session-only.
 
 ### T4b — Intelligence surfacing (small, high-value)
 Readiness on the Dashboard attention queue ("2 clients red today" → deep-link); nutrition targets included in Companion export + printable docs (T1 ties in); gym-cut line item on the printable income summary.

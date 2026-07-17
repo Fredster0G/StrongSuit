@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone } from 'lucide-react'
+import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone, Wifi, Printer } from 'lucide-react'
 import { clientsRepo, logsRepo, clientNotesRepo, trainerRepo, programsRepo, exercisesRepo } from '@/db/repo'
 import type { Client } from '@/db/types'
 import { fullName, daysSince } from '@/lib/core'
@@ -15,7 +15,10 @@ import OverviewTab from './OverviewTab'
 import CheckInsTab from './CheckInsTab'
 import BillingTab from './BillingTab'
 import NutritionTab from './NutritionTab'
+import CoachingTab from './CoachingTab'
+import MessagesTab from './MessagesTab'
 import { generateCompanionFile } from '../companion/export'
+import { WiFiSyncDialog } from '../sync/WiFiSyncDialog'
 
 function EditClientDialog({ client, open, onClose }: { client: Client; open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({
@@ -104,12 +107,14 @@ function NotesTab({ clientId }: { clientId: string }) {
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'coaching', label: 'Coaching' },
   { id: 'program', label: 'Program' },
   { id: 'logs', label: 'Logs' },
   { id: 'checkins', label: 'Check-ins' },
   { id: 'metrics', label: 'Metrics' },
   { id: 'nutrition', label: 'Nutrition' },
   { id: 'notes', label: 'Notes' },
+  { id: 'messages', label: 'Messages' },
   { id: 'billing', label: 'Billing' },
 ]
 
@@ -126,6 +131,7 @@ export default function ClientDetailPage() {
   const lastLog = useLiveQuery(() => logsRepo.lastForClient(id), [id])
   const [tab, setTab] = useState('overview')
   const [showEdit, setShowEdit] = useState(false)
+  const [showSync, setShowSync] = useState(false)
 
   if (client === undefined || trainer === undefined) return <Card className="animate-pulse text-sm text-faint">Loading…</Card>
   if (!client) {
@@ -164,6 +170,11 @@ export default function ClientDetailPage() {
         </div>
         {client.status !== 'archived' && (
           <div className="flex items-center gap-2">
+            {activeProgram && (
+              <Button variant="ghost" size="sm" onClick={() => window.open(`#/print/program/${client.id}/${activeProgram.id}`, '_blank')}>
+                <Printer size={14} className="mr-1.5" /> Print
+              </Button>
+            )}
             <Button variant="primary" size="sm" onClick={() => {
               if (activeProgram && activeProgram.weeks.length > 0 && activeProgram.weeks[0].days.length > 0) {
                 // Find next day logically? For now just pick first day of active program
@@ -185,6 +196,20 @@ export default function ClientDetailPage() {
 
       {client.injuries && <div className="mb-4"><InjuryRibbon text={client.injuries} /></div>}
 
+      {client.status !== 'archived' && (!client.screening || !client.screening.cleared) && (
+        <button
+          onClick={() => setTab('coaching')}
+          className="mb-4 flex w-full items-start gap-2 rounded-ctl border border-ember-500/30 bg-ember-500/10 px-3 py-2 text-left text-xs text-ember-600"
+        >
+          <span className="mt-px font-semibold uppercase tracking-wide">Safety</span>
+          <span className="text-ink">
+            {!client.screening
+              ? 'No health screening on file. Run the PAR-Q+ and record a waiver before training — open the Coaching tab.'
+              : 'Screening flagged items — confirm physician clearance and record a waiver in the Coaching tab.'}
+          </span>
+        </button>
+      )}
+
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
       <div className="pt-4">
@@ -204,16 +229,24 @@ export default function ClientDetailPage() {
                   <h3 className="font-semibold text-lg">{activeProgram.name}</h3>
                   <p className="text-sm text-faint mt-1">{activeProgram.description || 'No description provided.'}</p>
                 </div>
-                <Button 
-                  variant="primary" 
-                  onClick={async () => {
-                    if (!client || !activeProgram || !trainer) return
-                    const exercises = await exercisesRepo.all()
-                    generateCompanionFile(client, activeProgram, trainer, exercises)
-                  }}
-                >
-                  <Smartphone size={16} className="mr-2" /> Export Companion App
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setShowSync(true)}
+                  >
+                    <Wifi size={16} className="mr-2" /> WiFi Sync
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    onClick={async () => {
+                      if (!client || !activeProgram || !trainer) return
+                      const exercises = await exercisesRepo.all()
+                      generateCompanionFile(client, activeProgram, trainer, exercises)
+                    }}
+                  >
+                    <Smartphone size={16} className="mr-2" /> Export Companion App
+                  </Button>
+                </div>
               </div>
               <div className="mt-6 border-t border-line pt-4 flex gap-4">
                 <Link to={`/programs/${activeProgram.id}`}><Button variant="ghost" size="sm">Edit Program</Button></Link>
@@ -237,11 +270,17 @@ export default function ClientDetailPage() {
         {tab === 'metrics' && (
           <MetricsTab clientId={client.id} units={trainer.units} />
         )}
+        {tab === 'coaching' && (
+          <CoachingTab client={client} units={trainer.units} />
+        )}
         {tab === 'nutrition' && (
           <NutritionTab client={client} units={trainer.units} />
         )}
         {tab === 'notes' && (
           <NotesTab clientId={client.id} />
+        )}
+        {tab === 'messages' && (
+          <MessagesTab clientId={client.id} />
         )}
         {tab === 'billing' && (
           <BillingTab clientId={client.id} client={client} />
@@ -249,6 +288,7 @@ export default function ClientDetailPage() {
       </div>
 
       <EditClientDialog client={client} open={showEdit} onClose={() => setShowEdit(false)} />
+      <WiFiSyncDialog open={showSync} onClose={() => setShowSync(false)} />
     </div>
   )
 }

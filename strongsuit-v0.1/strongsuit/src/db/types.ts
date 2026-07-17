@@ -28,7 +28,20 @@ export interface Trainer extends Base {
   syncServerUrl?: string       // URL for cloud/managed sync relay
   syncServerApiKey?: string    // API key for the cloud relay (v1.4)
   eulaAcceptedAt?: string      // ISO timestamp of when the coach accepted the EULA (v1.4)
+  // module visibility (v1.6) — hide nav sections a solo/independent coach doesn't need.
+  // Absent/undefined key = visible (opt-out, not opt-in, so existing installs show everything).
+  hiddenModules?: ModuleKey[]
+  // hosting tier (v1.6) — see docs/SERVER_STRATEGY.md. Independent of syncServerUrl:
+  // 'local' ignores it entirely; 'self-hosted' uses syncServerUrl as-is; 'managed' points
+  // at Coachwright's hosted relay (a paid, opt-in convenience — never required).
+  cloudTier?: 'local' | 'self-hosted' | 'managed'
+  managedLicenseKey?: string   // the coach's key for the managed ($/mo) relay, if subscribed
 }
+
+/** Optional nav sections a solo coach can hide (Settings → Modules). Core
+ *  workflow (Today/Clients/Programs/Exercises/Logging/Settings) is never hideable. */
+export type ModuleKey =
+  | 'filmRoom' | 'calendar' | 'business' | 'team' | 'leads' | 'leaderboard' | 'sync' | 'reports'
 
 // ---- Secure sync (spec §4.23) ----
 export interface SyncIdentity {
@@ -114,6 +127,8 @@ export interface Client extends Base {
   birthDate?: string       // yyyy-MM-dd
   activityLevel?: ActivityLevel
   nutritionGoal?: NutritionGoal
+  dietPhaseStartDate?: string  // yyyy-MM-dd — when the current cut/gain phase began (v1.6, diet-break awareness)
+  trainingDaysPerWeek?: number // v1.6, drives carb cycling
   // facility cut on this client's income (unindexed, added v1.2)
   gymCut?: GymCut
   // training goal + safety (unindexed, added v1.3)
@@ -138,13 +153,21 @@ export type ExerciseCategory =
 
 export type TrackingType = 'weight_reps' | 'reps' | 'time' | 'distance' | 'rpe_only'
 
+export interface ExerciseVideoLink {
+  label: string     // e.g. "Coaching cue", "Alternate angle", "Client demo"
+  url: string
+}
+
 export interface Exercise extends Base {
   name: string
   aliases: string[]
   category: ExerciseCategory
   primaryMuscles: string[]
   equipment: string[]
+  /** @deprecated kept for old rows; new/edited exercises use videoLinks. Read
+   *  through `lib/media.ts`'s `exerciseVideos()` which merges both. */
   videoUrl?: string
+  videoLinks?: ExerciseVideoLink[]   // added v1.6 — multiple links, played in-app
   cues: string[]
   isCustom: boolean
   defaultTracking: TrackingType
@@ -228,6 +251,7 @@ export interface LogEntry {
   exerciseId: string
   sets: LoggedSet[]
   notes?: string
+  restSeconds?: number   // carried from the prescription, or the trainer's default — drives the rest timer
 }
 
 export type DataSource = 'trainer' | 'companion-import'
@@ -268,7 +292,11 @@ export interface CoachMessage extends Base {
   content: string
 }
 
-export type MetricType = 'bodyweight' | 'bodyfat' | 'measurement' | 'custom'
+export type MetricType =
+  | 'bodyweight' | 'bodyfat' | 'measurement' | 'custom'
+  | 'performance'    // e.g. vertical jump, broad jump, sprint time, mile time (v1.6)
+  | 'recovery'       // e.g. resting heart rate, HRV (v1.6)
+  | 'strength-test'  // a tested (not working-set) 1RM/e1RM on a key lift (v1.6)
 
 export interface Metric extends Base {
   clientId: string
@@ -383,6 +411,10 @@ export interface Invoice extends Base {
   total: number
   status: InvoiceStatus
   notes?: string
+  /** A payment link the coach pastes in from their OWN Stripe/Square/PayPal
+   *  account (see docs/SERVER_STRATEGY.md §3). Coachwright never processes
+   *  payments or holds card data — this just renders their link as a button. */
+  paymentLink?: string
 }
 
 export type CouponKind = 'percent' | 'flat'

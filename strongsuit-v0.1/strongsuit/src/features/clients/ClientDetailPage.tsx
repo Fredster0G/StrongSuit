@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone, Wifi, Printer } from 'lucide-react'
-import { clientsRepo, logsRepo, clientNotesRepo, trainerRepo, programsRepo, exercisesRepo } from '@/db/repo'
+import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone, Wifi, Printer, Tv, Mail, MessageCircle, Download } from 'lucide-react'
+import { clientsRepo, logsRepo, clientNotesRepo, trainerRepo, programsRepo, exercisesRepo, staffRepo, locationsRepo } from '@/db/repo'
 import type { Client } from '@/db/types'
 import { fullName, daysSince } from '@/lib/core'
+import { exportClientPackage } from '@/db/portability'
+import { downloadText } from '@/db/backup'
 import {
   Button, Card, Tabs, Tag, Avatar, EmptyState, InjuryRibbon, toast,
-  Dialog, Field, Input, Textarea,
+  Dialog, Field, Input, Textarea, Select,
 } from '@/design'
 import LogsTab from './LogsTab'
 import MetricsTab from './MetricsTab'
@@ -21,19 +23,28 @@ import { generateCompanionFile } from '../companion/export'
 import { WiFiSyncDialog } from '../sync/WiFiSyncDialog'
 
 function EditClientDialog({ client, open, onClose }: { client: Client; open: boolean; onClose: () => void }) {
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
+  const locations = useLiveQuery(() => locationsRepo.all(), [], [])
   const [form, setForm] = useState({
     firstName: client.firstName,
     lastName: client.lastName,
     email: client.email || '',
     phone: client.phone || '',
     goals: client.goals || '',
-    injuries: client.injuries || ''
+    injuries: client.injuries || '',
+    staffId: client.staffId || '',
+    locationId: client.locationId || '',
+    leaderboardOptIn: client.leaderboardOptIn ?? false,
   })
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }))
 
   async function save() {
     if (!form.firstName.trim()) return
-    await clientsRepo.update(client.id, form)
+    await clientsRepo.update(client.id, {
+      ...form,
+      staffId: form.staffId || undefined,
+      locationId: form.locationId || undefined,
+    })
     toast(`${form.firstName}'s details updated.`)
     onClose()
   }
@@ -52,6 +63,32 @@ function EditClientDialog({ client, open, onClose }: { client: Client; open: boo
           <Field label="Injuries & limitations" hint="shows as a ribbon in the program builder">
             <Textarea value={form.injuries} onChange={set('injuries')} />
           </Field>
+        </div>
+        {(staff.length > 0 || locations.length > 0) && (
+          <>
+            {staff.length > 0 && (
+              <Field label="Assigned coach" hint="drives commission tracking">
+                <Select value={form.staffId} onChange={set('staffId')}>
+                  <option value="">— unassigned —</option>
+                  {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {locations.length > 0 && (
+              <Field label="Location">
+                <Select value={form.locationId} onChange={set('locationId')}>
+                  <option value="">— unassigned —</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </Select>
+              </Field>
+            )}
+          </>
+        )}
+        <div className="col-span-2">
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={form.leaderboardOptIn} onChange={e => setForm(f => ({ ...f, leaderboardOptIn: e.target.checked }))} className="accent-[var(--verde-600)]" />
+            Include in cross-client leaderboards
+          </label>
         </div>
       </div>
       <div className="mt-4 flex justify-end gap-2">
@@ -151,6 +188,12 @@ export default function ClientDetailPage() {
     toast(`${client!.firstName} archived. Their history is kept.`)
   }
 
+  async function exportPortableData() {
+    const pkg = await exportClientPackage(client!.id)
+    downloadText(`${fullName(client!).replace(/\s+/g, '-').toLowerCase()}.cwclient.json`, JSON.stringify(pkg, null, 2))
+    toast('Client data exported. Hand this file to their next coach — any Coachwright install can import it.')
+  }
+
   return (
     <div>
       <Link to="/clients" className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink">
@@ -165,15 +208,30 @@ export default function ClientDetailPage() {
             <div className="mt-0.5 flex items-center gap-2">
               <Tag tone={client.status === 'active' ? 'verde' : 'neutral'}>{client.status}</Tag>
               <span className="font-mono tnum text-2xs text-faint">since {client.startDate}</span>
+              {client.email && (
+                <a href={`mailto:${client.email}`} className="text-faint hover:text-verde-600" title={`Email ${client.email}`}>
+                  <Mail size={13} />
+                </a>
+              )}
+              {client.phone && (
+                <a href={`sms:${client.phone}`} className="text-faint hover:text-verde-600" title={`Text ${client.phone}`}>
+                  <MessageCircle size={13} />
+                </a>
+              )}
             </div>
           </div>
         </div>
         {client.status !== 'archived' && (
           <div className="flex items-center gap-2">
             {activeProgram && (
-              <Button variant="ghost" size="sm" onClick={() => window.open(`#/print/program/${client.id}/${activeProgram.id}`, '_blank')}>
-                <Printer size={14} className="mr-1.5" /> Print
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" onClick={() => window.open(`#/tv/${client.id}`, '_blank')} title="Open a big-screen display for the gym floor">
+                  <Tv size={14} className="mr-1.5" /> TV mode
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => window.open(`#/print/program/${client.id}/${activeProgram.id}`, '_blank')}>
+                  <Printer size={14} className="mr-1.5" /> Print
+                </Button>
+              </>
             )}
             <Button variant="primary" size="sm" onClick={() => {
               if (activeProgram && activeProgram.weeks.length > 0 && activeProgram.weeks[0].days.length > 0) {
@@ -189,6 +247,9 @@ export default function ClientDetailPage() {
               <PenLine size={14} className="mr-1.5" /> Log Session
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setShowEdit(true)}>Edit</Button>
+            <Button variant="ghost" size="sm" onClick={exportPortableData} title="Export this client's full history to hand off to another coach">
+              <Download size={14} className="mr-1.5" /> Export data
+            </Button>
             <Button variant="ghost" size="sm" onClick={archive}><Archive size={14} /> Archive</Button>
           </div>
         )}
@@ -268,7 +329,7 @@ export default function ClientDetailPage() {
           <CheckInsTab clientId={client.id} />
         )}
         {tab === 'metrics' && (
-          <MetricsTab clientId={client.id} units={trainer.units} />
+          <MetricsTab clientId={client.id} units={trainer.units} trainingGoal={client.trainingGoal} />
         )}
         {tab === 'coaching' && (
           <CoachingTab client={client} units={trainer.units} />

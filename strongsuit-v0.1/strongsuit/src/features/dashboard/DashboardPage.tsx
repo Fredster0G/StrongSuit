@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, ClipboardList, FileDown, CheckCircle2, Circle, PenLine, ChevronRight } from 'lucide-react'
-import { clientsRepo, trainerRepo } from '@/db/repo'
-import { db } from '@/db/schema'
-import { daysSince, fullName } from '@/lib/core'
+import { clientsRepo, trainerRepo, programsRepo, logsRepo, checkInsRepo, paymentsRepo, automationRulesRepo } from '@/db/repo'
+import { fullName } from '@/lib/core'
 import { APP_NAME } from '@/lib/brand'
 import { Card, SectionHeader, Button, EmptyState, Tag } from '@/design'
+import { evaluateAutomations, DEFAULT_RULES, type ClientFacts } from '@/lib/automations'
+import { today } from '@/lib/core'
 
 function ChecklistItem({ done, label, to }: { done: boolean; label: string; to: string }) {
   return (
@@ -23,22 +24,40 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const trainer = useLiveQuery(() => trainerRepo.get())
   const clients = useLiveQuery(() => clientsRepo.active(), [], [])
-  const programCount = useLiveQuery(() => db.programs.count(), [], 0)
-  const logs = useLiveQuery(() => db.sessionLogs.toArray(), [], [])
+  const programs = useLiveQuery(() => programsRepo.all(), [], [])
+  const logs = useLiveQuery(() => logsRepo.all(), [], [])
+  const checkIns = useLiveQuery(() => checkInsRepo.all(), [], [])
+  const payments = useLiveQuery(() => paymentsRepo.all(), [], [])
+  const customRules = useLiveQuery(() => automationRulesRepo.active(), [], [])
   const [selectClientOpen, setSelectClientOpen] = useState(false)
 
   const hasBrand = !!trainer?.businessName
-  const hasClient = (clients?.length ?? 0) > 0
-  const hasProgram = (programCount ?? 0) > 0
+  const hasClient = clients.length > 0
+  const hasProgram = programs.length > 0
   const setupDone = hasBrand && hasClient && hasProgram
 
-  // Needs-attention: active clients with no session in 7+ days
-  const staleClients = (clients ?? [])
-    .map(c => {
-      const last = (logs ?? []).filter(l => l.clientId === c.id).sort((a, b) => a.date.localeCompare(b.date)).at(-1)
-      return { c, days: daysSince(last ? `${last.date}T00:00:00` : undefined) }
+  // Build per-client facts once, then let the automation engine (custom
+  // rules + always-on defaults) decide what needs attention — spec §4.29.
+  const facts = new Map<string, ClientFacts>()
+  for (const c of clients) {
+    const clientLogs = logs.filter(l => l.clientId === c.id).sort((a, b) => a.date.localeCompare(b.date))
+    const clientCheckIns = checkIns.filter(ci => ci.clientId === c.id).sort((a, b) => a.date.localeCompare(b.date))
+    const clientPayments = payments.filter(p => p.clientId === c.id)
+    const purchasedSessions = clientPayments.filter(p => p.type === 'session-credit').reduce((a, p) => a + (p.sessions ?? 0), 0)
+    const lastPayment = clientPayments.filter(p => p.type !== 'refund').sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+    facts.set(c.id, {
+      clientId: c.id,
+      lastSessionDate: clientLogs.at(-1)?.date,
+      lastCheckInDate: clientCheckIns.at(-1)?.date,
+      // estimate only — there's no first-class "pack" decrement ledger yet
+      sessionsRemaining: purchasedSessions > 0 ? Math.max(0, purchasedSessions - clientLogs.length) : undefined,
+      lastPaymentDate: lastPayment?.date,
+      hasScreening: !!c.screening,
+      screeningCleared: c.screening?.cleared ?? false,
     })
-    .filter(x => x.days === null || x.days >= 7)
+  }
+  const attention = evaluateAutomations({ clients, facts, rules: [...DEFAULT_RULES, ...customRules], today: today() })
+  const clientMap = new Map(clients.map(c => [c.id, c]))
 
   return (
     <div className="space-y-8">
@@ -67,29 +86,33 @@ export default function DashboardPage() {
       )}
 
       <div>
-        <SectionHeader title="Needs attention" />
+        <SectionHeader title="Needs attention" action={<Link to="/settings" className="text-2xs text-faint hover:text-ink">Customize rules</Link>} />
         {!hasClient ? (
           <EmptyState
             title="Nothing needs you yet"
-            body="Once you have active clients, anyone who hasn't trained in a week shows up here."
+            body="Once you have active clients, anyone who hasn't trained in a week — or trips a rule you set — shows up here."
           />
-        ) : staleClients.length === 0 ? (
+        ) : attention.length === 0 ? (
           <Card className="text-sm text-muted">Everyone's current. Nothing needs you right now.</Card>
         ) : (
           <div className="space-y-2">
-            {staleClients.map(({ c, days }) => (
-              <Link key={c.id} to={`/clients/${c.id}`} className="block">
-                <Card className="flex items-center justify-between transition-colors hover:border-verde-600/40">
-                  <span className="text-sm font-medium">{fullName(c)}</span>
-                  <Tag tone="ember">{days === null ? 'No sessions yet' : `${days}d since last session`}</Tag>
-                </Card>
-              </Link>
-            ))}
+            {attention.map((item, i) => {
+              const c = clientMap.get(item.clientId)
+              if (!c) return null
+              return (
+                <Link key={`${item.clientId}-${item.ruleId}-${i}`} to={`/clients/${c.id}`} className="block">
+                  <Card className="flex items-center justify-between transition-colors hover:border-verde-600/40">
+                    <span className="text-sm font-medium">{fullName(c)}</span>
+                    <Tag tone={item.severity === 'warning' ? 'ember' : 'neutral'}>{item.message}</Tag>
+                  </Card>
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>
 
-      <dialog 
+      <dialog
         open={selectClientOpen}
         onCancel={() => setSelectClientOpen(false)}
         className="m-0 h-full max-h-none w-full max-w-sm ml-auto bg-surface shadow-sheet backdrop:bg-iron-950/20 backdrop:backdrop-blur-sm open:animate-slide-left p-0 z-50"
@@ -103,11 +126,11 @@ export default function DashboardPage() {
             {!hasClient ? (
                <p className="text-faint text-sm">You have no active clients to log for.</p>
             ) : (
-              clients?.map(c => (
+              clients.map(c => (
                 <button
                   key={c.id}
                   onClick={() => navigate(`/log?clientId=${c.id}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-line bg-surface hover:border-brand-500/50 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-line bg-surface hover:border-verde-600/50 hover:bg-verde-100/60 transition-colors text-left"
                 >
                   <span className="font-semibold text-ink">{fullName(c)}</span>
                   <ChevronRight size={16} className="text-faint" />

@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Search, Plus, Dumbbell, Pencil, PlayCircle } from 'lucide-react'
+import { Search, Plus, Dumbbell, Pencil, PlayCircle, Trash2 } from 'lucide-react'
 import { exercisesRepo } from '@/db/repo'
-import type { Exercise, ExerciseCategory } from '@/db/types'
+import type { Exercise, ExerciseCategory, ExerciseVideoLink } from '@/db/types'
 import { createFuzzyIndex } from '@/lib/fuzzy'
 import { stamp } from '@/lib/core'
+import { exerciseVideos } from '@/lib/videoEmbed'
+import { VideoViewerDialog } from './VideoViewer'
 import {
   Button, Input, Dialog, Table, Tag, SectionHeader, EmptyState, Field, Textarea, Select, toast
 } from '@/design'
@@ -32,8 +34,12 @@ function ExerciseDetailDialog({
     }
   }, [exercise])
 
-  const set = (k: keyof Exercise) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }))
-  
+  const set = <K extends keyof Exercise>(k: K) => (e: { target: { value: string } }) =>
+    setForm(f => ({ ...f, [k]: e.target.value as Exercise[K] }))
+
+  const videoLinks = form.videoLinks ?? []
+  const setVideoLinks = (links: ExerciseVideoLink[]) => setForm(f => ({ ...f, videoLinks: links }))
+
   const setArray = (k: keyof Exercise) => (e: { target: { value: string } }) => {
     // split by newline or comma depending on the field
     const val = e.target.value
@@ -53,6 +59,7 @@ function ExerciseDetailDialog({
       primaryMuscles: form.primaryMuscles || [],
       equipment: form.equipment || [],
       aliases: form.aliases || [],
+      videoLinks: videoLinks.filter(l => l.url.trim()),
     } as Exercise
 
     if (isNew) {
@@ -73,7 +80,7 @@ function ExerciseDetailDialog({
           <>
             <Field label="Name"><Input autoFocus value={form.name || ''} onChange={set('name')} /></Field>
             <Field label="Category">
-              <Select value={form.category || 'squat'} onChange={set('category') as any}>
+              <Select value={form.category || 'squat'} onChange={set('category')}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </Field>
@@ -95,7 +102,7 @@ function ExerciseDetailDialog({
           <Input value={(form.equipment || []).join(', ')} onChange={setArray('equipment')} />
         </Field>
         <Field label="Default Tracking">
-          <Select value={form.defaultTracking || 'weight_reps'} onChange={set('defaultTracking') as any}>
+          <Select value={form.defaultTracking || 'weight_reps'} onChange={set('defaultTracking')}>
             <option value="weight_reps">Weight & Reps</option>
             <option value="reps">Reps only</option>
             <option value="time">Time</option>
@@ -105,8 +112,25 @@ function ExerciseDetailDialog({
         </Field>
 
         <div className="col-span-2">
-          <Field label="Video URL" hint="optional, e.g. YouTube unlisted link">
-            <Input type="url" value={form.videoUrl || ''} onChange={set('videoUrl')} placeholder="https://" />
+          <Field label="Video links" hint="YouTube/Vimeo play in-app; anything else opens in a new tab">
+            <div className="space-y-2">
+              {videoLinks.map((link, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    className="w-28 shrink-0" placeholder="Label" value={link.label}
+                    onChange={e => setVideoLinks(videoLinks.map((l, j) => j === i ? { ...l, label: e.target.value } : l))}
+                  />
+                  <Input
+                    type="url" placeholder="https://" value={link.url}
+                    onChange={e => setVideoLinks(videoLinks.map((l, j) => j === i ? { ...l, url: e.target.value } : l))}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => setVideoLinks(videoLinks.filter((_, j) => j !== i))}><Trash2 size={13} /></Button>
+                </div>
+              ))}
+              <Button size="sm" variant="ghost" onClick={() => setVideoLinks([...videoLinks, { label: videoLinks.length ? `Angle ${videoLinks.length + 1}` : 'Coaching cue', url: '' }])}>
+                <Plus size={13} /> Add video link
+              </Button>
+            </div>
           </Field>
         </div>
 
@@ -131,6 +155,7 @@ export default function LibraryPage() {
   const [activeCat, setActiveCat] = useState<ExerciseCategory | 'all'>('all')
   
   const [editItem, setEditItem] = useState<Exercise | null>(null)
+  const [videoItem, setVideoItem] = useState<Exercise | null>(null)
 
   // Build the in-memory fuzzy index when the exercises array changes
   const searcher = useMemo(() => {
@@ -234,13 +259,20 @@ export default function LibraryPage() {
           </>
         }>
           {filtered.map(ex => (
-            <tr key={ex.id} className="group cursor-pointer hover:bg-surface-elevated/50" onClick={() => setEditItem(ex)}>
+            <tr key={ex.id} className="group cursor-pointer hover:bg-surface2" onClick={() => setEditItem(ex)}>
               <td>
                 <div className="flex flex-col">
                   <div className="font-medium text-ink flex items-center gap-2">
                     {ex.name}
                     {ex.isCustom && <Tag tone="neutral">Custom</Tag>}
-                    {ex.videoUrl && <PlayCircle size={14} className="text-verde-600" />}
+                    {exerciseVideos(ex).length > 0 && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setVideoItem(ex) }}
+                        className="text-verde-600 hover:text-verde-700" title="Watch video" aria-label="Watch video"
+                      >
+                        <PlayCircle size={14} />
+                      </button>
+                    )}
                   </div>
                   {ex.aliases.length > 0 && (
                     <div className="text-xs text-faint truncate mt-0.5">
@@ -266,6 +298,12 @@ export default function LibraryPage() {
         exercise={editItem}
         open={editItem !== null}
         onClose={() => setEditItem(null)}
+      />
+      <VideoViewerDialog
+        title={videoItem?.name ?? 'Video'}
+        links={videoItem ? exerciseVideos(videoItem) : []}
+        open={videoItem !== null}
+        onClose={() => setVideoItem(null)}
       />
     </div>
   )

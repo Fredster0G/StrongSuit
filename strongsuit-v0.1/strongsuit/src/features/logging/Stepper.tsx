@@ -60,7 +60,7 @@ export function Stepper({
       <button
         type="button"
         onClick={() => handleAdjust(-step)}
-        className="flex items-center justify-center px-3 bg-iron-50 hover:bg-iron-100 active:bg-iron-200 dark:bg-iron-900 dark:hover:bg-iron-800 text-faint transition-colors"
+        className="flex items-center justify-center px-3 bg-surface2 hover:bg-line active:bg-iron-200 text-faint transition-colors"
       >
         <Minus size={18} />
       </button>
@@ -72,13 +72,13 @@ export function Stepper({
         onChange={(e) => setLocal(e.target.value)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-16 min-w-0 text-center bg-transparent py-2 text-base font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500"
+        className="w-16 min-w-0 text-center bg-transparent py-2 text-base font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-inset focus:ring-verde-600"
       />
 
       <button
         type="button"
         onClick={() => handleAdjust(step)}
-        className="flex items-center justify-center px-3 bg-iron-50 hover:bg-iron-100 active:bg-iron-200 dark:bg-iron-900 dark:hover:bg-iron-800 text-faint transition-colors"
+        className="flex items-center justify-center px-3 bg-surface2 hover:bg-line active:bg-iron-200 text-faint transition-colors"
       >
         <Plus size={18} />
       </button>

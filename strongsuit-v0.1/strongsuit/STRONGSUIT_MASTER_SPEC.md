@@ -216,7 +216,21 @@ Priority tiers. P0 = must exist for launch; P1 = launch-week fast follow; P2 = v
 | 4.18 | Nutrition (full food-log module) | P2 (v2 paid expansion candidate) |
 | 4.18a | **Nutrition engine** (evidence-based targets w/ cited rationale) | P0 for v1.2 — **BUILT** |
 | 4.18b | **Readiness score** (check-in wellness model) | P1 for v1.2 — **BUILT** |
-| 4.19 | Coaching message log (exportable) | P2 |
+| 4.19 | Coaching message log (exportable) | P2 for v1.4 — **BUILT** (entity+tab in S9; export digest still open) |
+| 4.20 | In-app Guide & tutorial | P1 for v1.3 — **BUILT** |
+| 4.21 | EULA gate | P0 for v1.4 — **BUILT** |
+| 4.22 | Printable/branded documents (program sheet) | P0 — **BUILT** (progress report + intake sheet still open) |
+| 4.23 | **Secure device sync** (E2EE pairing, WiFi/LAN + Companion) | P0 for v1.3/1.4 — **PARTIALLY BUILT**, see §4.23 below |
+| 4.24 | **Windows desktop app** (Electron) | P0 for v1.4 — **BUILT**, live-launch unverified in this build env |
+| 4.25 | **Android app** (Capacitor) | P1 for v1.5 — **SCAFFOLDED**, unbuilt/untested, see §4.25 below |
+| 4.26 | **Team & locations** (staff, commissions, multi-location) | P1 for v1.5 — **BUILT** |
+| 4.27 | **CRM / leads pipeline** | P1 for v1.5 — **BUILT** |
+| 4.28 | **Leaderboards & challenges** | P2 for v1.5 — **BUILT** |
+| 4.29 | **Progress photos & habit tracking** | P2 for v1.5 — **BUILT** |
+| 4.30 | **Invoicing, coupons, account balances** | P1 for v1.5 — **BUILT** |
+| 4.31 | **Automations rule engine** | P1 for v1.5 — **BUILT** |
+| 4.32 | **TV Workout mode** (gym-floor display) | P2 for v1.5 — **BUILT** |
+| 4.33 | Payments/e-commerce, bulk email/SMS, push, sales funnels, on-demand/livestreaming | **OUT OF SCOPE** for the core zero-backend product — see `docs/SERVER_STRATEGY.md` for the honest, bring-your-own-account alternative for each |
 
 ---
 
@@ -344,13 +358,56 @@ NOT a food database (§1.4 stands) — a deterministic targets engine in `src/li
 `src/lib/readiness.ts`: 0–100 score from the latest check-in (sleep 35%, energy 30%, mood 20%, adherence 15%; 1–10 scales; missing fields drop out of the weighting) per the wellness-questionnaire monitoring literature (Hooper & Mackinnon 1995; McLean et al. 2010). Bands: ≥70 go / 45–69 moderate / <45 easy, each with coaching copy ("cap intensity, leave a rep in the tank"). Renders as the top card of the Check-ins tab with named drivers + source. Extension: surface on the Dashboard attention queue ("3 clients red today").
 
 ### 4.18 Nutrition full module (P2, NOT BUILT — v2 paid expansion candidate)
-Food logging/habit checklist beyond targets; still NO food database licensing. Habits piggyback on CheckIn answers.
+Food logging beyond targets; still NO food database licensing. (Habit tracking itself shipped in v1.5 as first-class `Habit`/`HabitEntry` entities with streaks — see §4.29 — superseding the original "piggyback on CheckIn answers" idea, which didn't support per-habit streak math cleanly.)
+
+### 4.19 Coaching message log (BUILT S9 — export digest still open)
+`CoachMessage` entity (schema v5) + `MessagesTab.tsx`: per-client timestamped log with direction (inbound/outbound) and channel (SMS/email/WhatsApp/in-person/other) — a manual record of async communication, not a sending mechanism (see `docs/SERVER_STRATEGY.md` §3 for why Coachwright doesn't send SMS/email itself, and the mailto:/sms: quick-contact links on the client header, built S10, that cover the 1:1 send case for free). Still open: exportable branded HTML digest, optional read-only "From your coach" feed in the Companion export.
 
 ### 4.20 In-app Guide & tutorial (BUILT S8)
-`src/features/settings/Guide.tsx`, rendered on the Settings page under the Brand kit. 11 collapsible `<details>` sections (native, accessible, zero-dep) covering the whole app in brand voice: the big idea, brand/clients, program builder, logging, a full Film Room walkthrough (both-video controls, sync, flip, frame-step, annotations, tracking metrics explained), nutrition, readiness, business/profit/gym-cut, Companion, backups, keyboard shortcuts, privacy/how-it-works. **Rule for future work:** ship a feature → add/adjust its Guide section. The manual ships inside the app (offline).
+`src/features/settings/Guide.tsx`, rendered on the Settings page under the Brand kit. 11 collapsible `<details>` sections (native, accessible, zero-dep) covering the whole app in brand voice: the big idea, brand/clients, program builder, logging, a full Film Room walkthrough (both-video controls, sync, flip, frame-step, annotations, tracking metrics explained), nutrition, readiness, business/profit/gym-cut, Companion, backups, keyboard shortcuts, privacy/how-it-works. **Rule for future work:** ship a feature → add/adjust its Guide section. The manual ships inside the app (offline). *(v1.5 note: Team/Leads/Leaderboards/Automations/TV mode shipped in S10 without new Guide sections — add them next session.)*
 
-### 4.19 Coaching message log (P2, NOT BUILT)
-Serverless "messaging": a per-client timestamped log of coaching notes/voice-of-coach entries the trainer writes, exportable as a branded text/HTML digest to send manually, and includable in the Companion export as a read-only "From your coach" feed. Return-path replies ride the existing `.ssdata` check-in loop. This answers the "no messaging" objection without violating the zero-backend doctrine.
+### 4.21 EULA gate (BUILT S9)
+`EulaScreen.tsx` — blocks the app (after onboarding, before first real use) until the trainer scrolls the full text and clicks accept; `Trainer.eulaAcceptedAt` gates it in `Shell.tsx`. Covers warranty disclaimer, client-health liability (the trainer is solely responsible; PAR-Q/waivers strongly advised — see §4.9/CoachingTab's screening+waiver flow), data-loss liability (local-first, no cloud backup unless self-configured), and E2EE sync's privacy scope. **This is a template — have an actual lawyer review it before real commercial sale.**
+
+### 4.22 Printable / branded documents — program sheet (BUILT S9; report + intake still open)
+`PrintSessionSheet.tsx`, route `/print/program/:clientId/:programId` — a clean A4/Letter-ready program document (weeks/days/blocks/exercises as fillable tables) triggering `window.print()` once loaded. Sibling top-level route (outside `<Shell/>`, no app chrome) — same pattern §4.32's TV mode uses. Still open per §4.8's original scope: progress-report PDF (charts+PRs+adherence for a date range) and a blank intake/PAR-Q sheet.
+
+### 4.23 Secure device sync (spec, partially built — S9/S10)
+Three layers, in order of maturity:
+1. **E2EE crypto core** (`lib/sync.ts`) — ECDH P-256 device identity, HKDF→AES-GCM shared key, a 6-digit safety number (SAS) for out-of-band verification, sealed+replay-guarded packets. Fully built and unit-tested (`lib/robust.test.ts`).
+2. **Local `.cwsync` file export/import** (`SyncCenterPage.tsx`, `syncApi.ts`) — works everywhere (web, desktop, any OS), fully functional today: pair via pasted code + verified safety number, then move a sealed packet file over AirDrop/email/USB/anything.
+3. **Live WiFi/LAN transport** (Electron only) — `WiFiSyncDialog.tsx` hosts a small Express server via IPC (`electron/main.ts`) on the coach's machine; a paired device on the same network can push/pull without a file round-trip. **Half-finished:** the Companion HTML template has no counterpart button to actually call this server yet (debt #16 in PROGRESS.md) — closing that loop is HANDOFF_SONNET.md's T1.
+4. **Optional cloud relay** (`sync-server/`, sibling directory) — a standalone Express+SQLite prototype that stores/forwards E2E-encrypted blobs (never sees plaintext) so sync can cross the internet, not just a LAN. Self-host only, not wired to any hosted service by default, and its API-key default MUST be changed before real use. See `docs/SERVER_STRATEGY.md` §6 for the honest framing if this is ever turned into a real paid add-on service.
+
+### 4.24 Windows desktop app (BUILT S9, live-launch unverified)
+`electron/main.ts` + `preload.ts`. Secure defaults (`contextIsolation: true`, `nodeIntegration: false`, navigation lockdown to localhost-dev/file: only). `npm run dev:electron` for a dev loop, `npm run build:electron` (electron-builder → NSIS) for a distributable installer. Compiles clean; `dist/`'s asset paths are `file://`-safe (relative, verified S10). **Never actually launched as a GUI window or packaged in the environments used to build it (no display automation) — do that once, interactively, before calling this done.**
+
+### 4.25 Android app (SCAFFOLDED S10, unbuilt/untested)
+Capacitor chosen over React Native (would require a full UI rewrite — Dexie has no RN equivalent, dnd-kit/canvas work is web-only) and Cordova (Capacitor is its maintained successor). `capacitor.config.ts` + a real, Capacitor-generated `android/` Gradle project exist (`npx cap add android` was run). **No Android SDK/Gradle/emulator exists in any environment this has been built in — the APK has never compiled, launched, or been tested on a device.** Full rationale, step-by-step finishing instructions, and expected mobile-viewport gotchas: `docs/ANDROID_STRATEGY.md`.
+
+### 4.26 Team & locations (BUILT S10)
+`Staff` (name, role: owner/coach/front-desk, `commissionPercent`, `locationId`, active) and `Location` (name, address) entities. `Client.staffId`/`locationId` assign a client to a coach/site. `TeamPage.tsx` (route `/team`) lists staff with commission-owed-this-month computed live (`staffCommissionForMonth` in `lib/business.ts`, same % of assigned-clients'-income pattern as the existing Gym Cut math). Multi-coach was originally spec'd as "v2, architect for it, don't build it" (§1.2) — v1.5 builds it because the ask explicitly required it; keep it simple (no permission/role enforcement yet, just tagging + math).
+
+### 4.27 CRM / leads pipeline (BUILT S10)
+`Lead` entity (name/email/phone/source/stage/notes/convertedClientId). `LeadsPage.tsx` (route `/leads`) — a 5-column kanban-lite (new → contacted → trial → won/lost) with one-click convert-to-client (creates a real `Client` row, marks the lead won). No lead-scoring or automated follow-up — that would need the automations engine extended to leads, a reasonable v2 addition, not built.
+
+### 4.28 Leaderboards & challenges (BUILT S10)
+Opt-in only (`Client.leaderboardOptIn`) — ranking clients against each other is sensitive, off by default. `lib/leaderboard.ts` computes rankings purely from data already logged (SessionLog tonnage/count, Metric bodyweight deltas) — no new tracking burden. `Challenge` entity (name/metric/date range/participant list) for time-boxed competitions layered on the same math. `LeaderboardPage.tsx` (route `/leaderboard`) shows this-month volume + last-30-days sessions ambiently, plus any active/past challenges.
+
+### 4.29 Progress photos & habit tracking (BUILT S10)
+`ProgressPhoto` (clientId/date/dataUrl/note) — client-side resized via `lib/media.ts` before storage (Canvas-based, browser-only) so backups don't balloon; gallery + first-vs-latest compare view in the Metrics tab. `Habit`/`HabitEntry` (clientId/name/active + per-day done flags) with `lib/habits.ts`'s `currentStreak` (ends today, or yesterday if today isn't logged yet) surfaced as a 🔥-streak chip in the Check-ins tab.
+
+### 4.30 Invoicing, coupons, account balances (BUILT S10)
+`Invoice` (clientId/number/date/dueDate/lineItems/couponCode/discountAmount/subtotal/total/status: draft→sent→paid/void, optional `paymentLink`) and `Coupon` (code/kind: percent|flat/value/active/expiresAt). `invoiceTotals`/`couponDiscount`/`clientBalance` in `lib/business.ts` — balance owed = sum of `sent` (unpaid) invoice totals, a deliberate simplification (no partial-payment-per-invoice tracking). The `paymentLink` field renders as a "Pay now" button pointing at the coach's OWN Stripe/Square/PayPal link (see §4.33/`docs/SERVER_STRATEGY.md` §3) — Coachwright never processes a payment or sees card data.
+
+### 4.31 Automations rule engine (BUILT S10)
+`lib/automations.ts`: `evaluateAutomations({clients, facts, rules, today})` re-evaluated on every Dashboard render — no background job, nothing runs while the app is closed (the honest ceiling for "automation" without a server, and the doctrine explanation is surfaced directly in the Settings copy). Two always-on `DEFAULT_RULES` (no-session-in-7-days, missing screening) plus coach-configurable `AutomationRule` rows (triggers: no-session-days, checkin-overdue-days, package-low-sessions, payment-overdue-days, screening-missing) editable in `Settings → Automations`. Replaces the old hardcoded 7-day-only Dashboard attention check.
+
+### 4.32 TV Workout mode (BUILT S10)
+`TvWorkoutPage.tsx`, sibling route `/tv/:clientId` (no chrome — same pattern as `PrintSessionSheet`). Full-screen, high-contrast, large-type display of a client's active program, paged by day with ←/→ keyboard nav. Not a casting SDK — the coach plugs a laptop into a gym TV or uses the OS's own screen-mirroring (AirPlay/Chromecast-tab-cast/Miracast all work on a normal web page). Read-only; logging still happens in the Session Logger on the trainer's or client's own device.
+
+### 4.33 Out of scope for the core product (see `docs/SERVER_STRATEGY.md`)
+Payment processing/e-commerce, bulk email/SMS marketing, push notifications, sales funnels/landing pages, on-demand video/livestreaming, storefront memberships. Each needs standing server infrastructure that contradicts the zero-backend, zero-recurring-cost doctrine (§0). `docs/SERVER_STRATEGY.md` gives the honest bring-your-own-account alternative for each (Stripe Payment Links, mailto:/sms: deep links, Gumroad, YouTube/Vimeo hosting linked from the existing Exercise `videoUrl` field, etc.) and a comparison table of what it would cost the buyer either way. If a future session is asked to build one of these "for real," read that document's §6 before doing anything — the right move is usually a clearly-labeled, separately-priced optional add-on, never something smuggled into the core one-time price.
 
 ---
 

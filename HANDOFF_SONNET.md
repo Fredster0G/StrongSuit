@@ -46,6 +46,44 @@ src/lib/brand.ts      SINGLE SOURCE OF TRUTH for the product name (Coachwright) 
                       in a component. Data-level ids (DB_NAME, BACKUP_APP_ID_LEGACY) keep 'strongsuit'
                       for backward compat — do not repoint without a migration.
 src/features/settings/Guide.tsx  In-app manual (11 accordion sections). Add a section when you ship a feature.
+--- S9 (undocumented — see PROGRESS.md S9 note) ---
+src/features/onboarding/EulaScreen.tsx  Gates the app after onboarding, before first use (Shell.tsx checks
+                      `trainer.eulaAcceptedAt`). Edit the legal text here if the buyer's lawyer wants changes.
+src/db/types.ts       CoachMessage (schema v5) — clientId/date/direction/channel/content. MessagesTab.tsx.
+src/features/print/PrintSessionSheet.tsx  Real printable program sheet, route `/print/program/:clientId/:programId`
+                      — a SIBLING top-level route (outside <Shell/>, no chrome), same pattern TV mode uses.
+electron/             main.ts (BrowserWindow, secure webPreferences, nav lockdown, IPC for WiFi sync server)
+                      + preload.ts (contextBridge — only exposes get-local-ip/start|stop-sync-server/sync
+                      request-response). This IS the Windows app — `npm run dev:electron` / `build:electron`.
+src/features/sync/    SyncCenterPage.tsx (pairing, local `.cwsync` export/import, optional Cloud Sync Server
+                      URL/API-key fields) + WiFiSyncDialog.tsx (Electron-only: hosts a LAN server via IPC,
+                      QR-pairs a client). Guard EVERY `window.electronAPI` call — it's undefined in the web
+                      build (see the `electronAPI()` helper in WiFiSyncDialog.tsx for the pattern).
+sync-server/          Sibling directory (NOT inside src/), a standalone Express+SQLite relay prototype.
+                      Self-host only, NOT wired to any hosted service by default. Its API key defaults to a
+                      hardcoded string — never ship that default if this is ever actually deployed.
+--- S10 ---
+src/lib/automations.ts  Configurable local rule engine (spec §4.29): evaluateAutomations(clients, facts, rules,
+                      today) + DEFAULT_RULES (always-on, not persisted/toggleable — see Settings→Automations).
+                      `daysBetween(dateStr, today)` is the deterministic day-diff helper — do NOT use
+                      lib/core's `daysSince` here, it reads the real wall clock and breaks testability.
+src/lib/business.ts   + staffCommissionForMonth/totalCommissionsForMonth, couponDiscount/invoiceTotals/
+                      clientBalance. Same file as the Profit Planner math — keep ledger-adjacent math here.
+src/lib/leaderboard.ts  leaderboard({metric, clients, sessionLogs, metrics, start, end, participantIds?}) —
+                      pure ranking over data already logged. Clients must opt in (`leaderboardOptIn`).
+src/lib/habits.ts     currentStreak(entries, today) — consecutive-day streak ending today or yesterday.
+src/lib/media.ts      resizeImageToDataUrl(file) — browser-only (Canvas/Image), not unit-tested for that
+                      reason. Used by Progress Photos so backups don't balloon with full-res images.
+src/features/team/TeamPage.tsx        Staff + Location rosters, commission-owed stat per staff. Route `/team`.
+src/features/leads/LeadsPage.tsx      CRM pipeline (kanban-lite), convert-to-client. Route `/leads`.
+src/features/leaderboard/LeaderboardPage.tsx  Cross-client ranking + Challenge creation. Route `/leaderboard`.
+src/features/tv/TvWorkoutPage.tsx     Full-screen gym-floor display, sibling route `/tv/:clientId` (no chrome,
+                      same pattern as PrintSessionSheet). Read-only — logging still happens in Session Logger.
+docs/SERVER_STRATEGY.md   The honest line on payments/email/SMS/push/e-commerce. READ BEFORE building anything
+                      that smells like it needs a server — it tells you whether to build it, bring-your-own-
+                      account it, or point the buyer at a real external tool.
+docs/ANDROID_STRATEGY.md  Why Capacitor; what's scaffolded (`android/`, real but unbuilt/untested — no SDK
+                      in any environment used so far); what's left, in order, for a human with Android Studio.
 Film Room dual controls: `useClip(ref, clipKey, fps)` = per-video transport state; `TransportBar` =
                       one control row. `linked` (overlay or sync-locked) → one master bar drives both;
                       else Client + Reference get independent bars. `mirrorA/mirrorB` = horizontal flip.
@@ -66,35 +104,40 @@ Film Room dual controls: `useClip(ref, clipKey, fps)` = per-video transport stat
 - On-device AI rule: no API keys, no external model hosts, ever. Models ship in `public/` at build time; heavy runtimes load via lazy `import()` behind an explicit user action; detection loops ride presented-frame callbacks, never `setInterval`.
 - ALWAYS run npm/vitest/build from `strongsuit-v0.1/strongsuit/` — running from the repo root half-works (files resolve, aliases don't) and once scattered npm artifacts at the root (fixed in S7).
 - Brand rule: the product is **Coachwright**. Never hardcode the name — import from `src/lib/brand.ts`. Data-level ids stay `strongsuit` for backward compat (see the file's warning). When you add a user-facing surface, pull the name from brand.ts and add a Guide section for the feature.
+- **Tailwind token rule (S10):** if you write a color class, grep `tailwind.config.js`/`src/index.css` first and confirm it's a real token. `bg-brand`, `text-brand-500`, `hover:bg-ember-50`, `dark:hover:bg-ember-900/20` all shipped to production silently as no-ops (invisible, no error, no warning) before S10 caught them by reading rendered output — Tailwind does not warn on an unmapped class, it just drops it. Approved tokens are listed in §1 above; the ember/verde scale only has 500/600 steps (use `/10`, `/20` alpha suffixes for tints, e.g. `bg-ember-500/10`, not a nonexistent `ember-50`).
+- **Zero-backend discipline (S10):** before building anything that smells like it needs a server (payments, bulk email/SMS, push, hosting), read `docs/SERVER_STRATEGY.md` §1 first. The rule: local-only → build it for real; a coach-owned external link (payment link, mailto:, videoUrl) → build the integration point, not the service; a standing service running while the app is closed → document it in that file, do not fake a button that doesn't work.
+- **Update-the-docs discipline:** S9 built substantial, largely-good code and updated NONE of PROGRESS.md/HANDOFF_SONNET.md — S10 spent real time reconstructing what changed before it could safely continue. Whatever you build this session, the Definition of Done (§6 below) is not optional, even for a short session.
 
 ## 4. YOUR TASK QUEUE (in order — do not reorder; spec § refs are the contract)
 
-### T1 — Printable/branded documents (spec §4.8 — the oldest unbuilt P0)
-Print routes + `@media print` stylesheets in `src/print/`: (a) Program PDF (trainer logo from Brand Kit, program overview, week grids), (b) Progress report PDF (e1RM/tonnage charts as inline SVG, PR feed, adherence % for a date range — reuse `lib/analytics.ts`), (c) blank session sheet + PAR-Q intake. "Download PDF" = designed window.print() guidance. Wire entry points: Program Builder header, client Overview tab, Reports page.
+### T1 — Close the WiFi sync loop (debt #16 — the highest-value half-finished thing in the codebase)
+S9 built the coach-side Electron WiFi server + QR pairing (`WiFiSyncDialog.tsx`) but nothing on the Companion (client) side calls it. Add a "Sync over WiFi" screen/button to `companion/template.html` (vanilla JS, no dependency) that: (a) accepts/scans the coach's LAN address, (b) POSTs its local payload to `http://<ip>:<port>/sync/push`, (c) shows the coach's return packet applied. Keep the existing `.ssdata` file path working as the always-available fallback — WiFi is a convenience layer, not a replacement.
 
-### T2 — Progression engine completion (spec §4.14; core is BUILT in `lib/progression.ts`)
-a. Policy editor: attach a `ProgressionPolicy` to a Program in the Builder (small Select + params popover on the program header; type already exists on `Program.progressionPolicy`).
-b. Ghost values in SessionLoggerPage: when the day's program has a policy, prefill suggested load/reps as ghost text via `suggestNext` + that exercise's history (`logsRepo.exerciseHistory`), with the reason line as a tooltip. Match the "Suggested next" card pattern already in `ExerciseHistoryDrawer.tsx`.
+### T2 — Verify Windows & Android on a real machine (debts #17, #18 — cannot be done in this sandbox)
+Windows: `npm run dev:electron` (live window) then `npm run build:electron` (NSIS installer) — first real GUI launch this app has ever had. Android: follow `docs/ANDROID_STRATEGY.md` exactly (`npm run android:sync` → `npm run android:open` → run in Android Studio) — expect a mobile-viewport QA pass to be needed (Program Builder drag-and-drop, Film Room controls were built desktop-first).
+
+### T3 — Printable/branded documents completion (spec §4.8 — program sheet DONE in S9, rest still open)
+`PrintSessionSheet.tsx` exists for programs. Still needed: (a) Progress report PDF (e1RM/tonnage charts as inline SVG, PR feed, adherence % for a date range), (b) blank session sheet + PAR-Q intake sheet (the PAR-Q questions already exist in `lib/parq.ts` if that module is present, or `CoachingTab.tsx`'s screening dialog — reuse, don't re-author). Same sibling-route pattern as `PrintSessionSheet`/`TvWorkoutPage`.
+
+### T4 — Progression engine completion (spec §4.14; core is BUILT in `lib/progression.ts`)
+a. Policy editor: attach a `ProgressionPolicy` to a Program in the Builder.
+b. Ghost values in SessionLoggerPage via `suggestNext` + `logsRepo.exerciseHistory`, reason line as tooltip.
 c. Use the policy (not the heuristic) for duplicate-week auto-progression in the builder if not already consistent.
 
-### T3 — Coaching message log (spec §4.19 — answers the "no messaging" objection)
-New entity `CoachMessage { clientId, date, body }` (Dexie v4 — APPEND version; bump envelope SCHEMA_VERSION to 3 and add table to ALL_TABLES + BackupEnvelope, mirroring how S6 added expenses). Per-client "Messages" tab: timestamped log, exportable branded HTML digest (reuse companion/export.ts brand-injection pattern), optional read-only "From your coach" section in the Companion export.
+### T5 — Coaching message log completion (spec §4.19 — entity + tab BUILT in S9)
+`CoachMessage`/`MessagesTab.tsx` exist. Still open: exportable branded HTML digest (reuse `companion/export.ts` brand-injection pattern), optional read-only "From your coach" section in the Companion export.
 
-### T4 — Film Room + tracking polish (spec §4.16/4.16b — core + dual controls BUILT in S8)
-Done: independent per-video transports, sync-lock master bar, flip client/ref, full Guide walkthrough.
-a. **Manual QA with real phone footage first** (portrait, 60fps, squat + press): verify skeleton alignment, sync-lock accuracy, and rep-counter thresholds (debt #10) — tune `RepCounter` constants or add One-Euro smoothing in `lib/pose.ts` if jittery; thresholds are unit-tested so tune tests alongside.
+### T6 — Film Room + tracking polish (spec §4.16/4.16b — core + dual controls BUILT in S8)
+a. **Manual QA with real phone footage** (portrait, 60fps, squat + press): verify skeleton alignment, sync-lock accuracy, rep-counter thresholds (debt #10) — tune `RepCounter` constants or add One-Euro smoothing in `lib/pose.ts` if jittery.
 b. Per-rep results table + "copy to session notes"; PNG snapshot export of stage+annotations.
 c. Reference-clip tracking + client-vs-reference angle deltas (the killer demo).
-d. Register `/film-room` in CommandPalette; give the independent Reference bar keyboard control (debt #13). Keep videos session-only.
+d. Register `/film-room` and the new S10 routes (`/team`, `/leads`, `/leaderboard`) in CommandPalette.
 
-### T4b — Intelligence surfacing (small, high-value)
-Readiness on the Dashboard attention queue ("2 clients red today" → deep-link); nutrition targets included in Companion export + printable docs (T1 ties in); gym-cut line item on the printable income summary.
-
-### T5 — Phase 9: Hardening & release (spec §8)
-vite-plugin-pwa, error boundaries per route, **fix known debt #6** (first-boot getOrCreate ConstraintError race — make it `put()` or catch), code-split builder + film room (debt #8), reduced-motion pass, Lighthouse, cross-browser, `HOW-TO-OWN-IT.md`.
+### T7 — Phase 9: Hardening & release (spec §8)
+vite-plugin-pwa, error boundaries per route, **fix debt #6** (first-boot ConstraintError — verify S9's `main.tsx` getOrCreate + Shell's `.get()` split actually closed this; it looks fixed but hasn't had a dedicated regression check), code-split builder + film room + the new S10 routes (main bundle is ~820KB now — debt #8 keeps growing), reduced-motion pass, Lighthouse, cross-browser, `HOW-TO-OWN-IT.md`. Prune `sync-server/`'s committed `coachwright.db` before any distribution packaging (debt #19).
 
 ### Marketing track (parallel, non-code)
-`BRANDING_PLAN.md` at repo root is the contract for all naming/copy: features are called **Film Room**, **Companion**, **Profit Planner**, **The Ledger**. Landing-page savings calculator mirrors `lib/business.ts` math.
+`BRANDING_PLAN.md` at repo root is the contract for all naming/copy: features are called **Film Room**, **Companion**, **Profit Planner**, **The Ledger**, **Studio Link**, **Team**, **Leads**, **Leaderboards**, **TV Workout**. `docs/SERVER_STRATEGY.md` §5 has monetization guidance worth mining for marketing copy (the "you'd be paying $X/mo elsewhere" framing, the Companion-footer referral loop).
 
 ## 5. Honesty ledger
 Two contained `as any` at Dexie generic boundaries (documented in PROGRESS.md). Attention-queue is O(all logs) — acceptable until Phase 5. If you cut a corner, write it in PROGRESS.md "Known debts" — silent debt is the only unacceptable kind.

@@ -3,12 +3,15 @@ import { DB_NAME } from '@/lib/brand'
 import type {
   Trainer, Client, ClientNote, Exercise, Program, SessionLog,
   CheckIn, Metric, Payment, Appointment, Expense, Waiver, Device,
-  CoachMessage
+  CoachMessage, Staff, Location, Lead, ProgressPhoto, Habit, HabitEntry,
+  Challenge, Invoice, Coupon, AutomationRule,
 } from './types'
 
-// Envelope schema version. Bumped 1→2 (expenses), 2→3 (waivers + devices, v1.3).
-// A newer envelope is rejected by older apps with the "made with a newer version" message.
-export const SCHEMA_VERSION = 5
+// Envelope schema version. Bumped 1→2 (expenses), 2→3 (waivers + devices, v1.3),
+// 4→5 (messages, v1.4), 5→6 (team/locations/CRM/photos/habits/leaderboards/
+// invoicing/automations, v1.5). A newer envelope is rejected by older apps with
+// the "made with a newer version" message.
+export const SCHEMA_VERSION = 6
 
 export class CoachwrightDB extends Dexie {
   trainer!: Table<Trainer, string>
@@ -25,6 +28,16 @@ export class CoachwrightDB extends Dexie {
   waivers!: Table<Waiver, string>
   devices!: Table<Device, string>
   messages!: Table<CoachMessage, string>
+  staff!: Table<Staff, string>
+  locations!: Table<Location, string>
+  leads!: Table<Lead, string>
+  progressPhotos!: Table<ProgressPhoto, string>
+  habits!: Table<Habit, string>
+  habitEntries!: Table<HabitEntry, string>
+  challenges!: Table<Challenge, string>
+  invoices!: Table<Invoice, string>
+  coupons!: Table<Coupon, string>
+  automationRules!: Table<AutomationRule, string>
 
   // DB_NAME stays 'strongsuit' post-rename so existing IndexedDB data survives
   // the Coachwright rebrand (see lib/brand.ts). Never repoint without migration.
@@ -63,6 +76,21 @@ export class CoachwrightDB extends Dexie {
     this.version(5).stores({
       messages: 'id, clientId, date',
     }).upgrade(_tx => {})
+
+    // v1.5: team/locations, CRM leads, progress photos, habits, challenges,
+    // invoicing/coupons, and the automation rule engine.
+    this.version(6).stores({
+      staff: 'id, locationId, role',
+      locations: 'id',
+      leads: 'id, stage',
+      progressPhotos: 'id, clientId, date',
+      habits: 'id, clientId',
+      habitEntries: 'id, habitId, clientId, date, [habitId+date]',
+      challenges: 'id, startDate, endDate',
+      invoices: 'id, clientId, number, status',
+      coupons: 'id, code',
+      automationRules: 'id',
+    }).upgrade(_tx => {})
   }
 }
 
@@ -71,6 +99,7 @@ export const db = new CoachwrightDB()
 export const ALL_TABLES = [
   'trainer', 'clients', 'clientNotes', 'exercises', 'programs', 'sessionLogs',
   'checkIns', 'metrics', 'payments', 'appointments', 'expenses', 'waivers', 'devices',
-  'messages',
+  'messages', 'staff', 'locations', 'leads', 'progressPhotos', 'habits', 'habitEntries',
+  'challenges', 'invoices', 'coupons', 'automationRules',
 ] as const
 export type TableName = (typeof ALL_TABLES)[number]

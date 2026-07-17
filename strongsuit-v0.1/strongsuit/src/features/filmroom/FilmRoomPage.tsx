@@ -6,7 +6,8 @@ import {
 import { Button, Card, SectionHeader, EmptyState, Kbd, Select, Stat, toastError } from '@/design'
 import {
   frameAngles, symmetryPct, BONES, RepCounter, FocusJointPicker,
-  SYMMETRY_PAIRS, type JointName, type Lm, type Rep,
+  SYMMETRY_PAIRS, repConsistency, barPathDeviation, barPathPoint,
+  type JointName, type Lm, type Rep,
 } from '@/lib/pose'
 
 // ===== Film Room — local biomechanical video analysis =====
@@ -44,29 +45,36 @@ function angleAt(pts: [Pt, Pt, Pt], w: number, h: number) {
 /** Maps normalized pose landmarks onto the letterboxed video content box and
  *  draws the skeleton. Reads the <video> element's live geometry each render
  *  (the page re-renders per tracked frame anyway). */
-function SkeletonOverlay({ landmarks, videoRef }: {
+function SkeletonOverlay({ landmarks, videoRef, barPath }: {
   landmarks: Lm[] | null
   videoRef: React.RefObject<HTMLVideoElement | null>
+  barPath?: Pt[]
 }) {
   const v = videoRef.current
-  if (!landmarks || !v || !v.videoWidth) return null
+  if (!v || !v.videoWidth) return null
   const cw = v.clientWidth, ch = v.clientHeight
   const scale = Math.min(cw / v.videoWidth, ch / v.videoHeight)
   const dw = v.videoWidth * scale, dh = v.videoHeight * scale
   const ox = (cw - dw) / 2, oy = (ch - dh) / 2
   const pt = (i: number) => {
-    const lm = landmarks[i]
+    const lm = landmarks?.[i]
     if (!lm || (lm.visibility ?? 1) < 0.5) return null
     return { x: ox + lm.x * dw, y: oy + lm.y * dh }
   }
   return (
     <svg width="100%" height="100%" className="pointer-events-none absolute inset-0">
-      {BONES.map(([a, b], i) => {
+      {barPath && barPath.length > 1 && (
+        <polyline
+          points={barPath.map(p => `${ox + p.x * dw},${oy + p.y * dh}`).join(' ')}
+          className="fill-none stroke-ember-500" strokeWidth={2} opacity={0.8}
+        />
+      )}
+      {landmarks && BONES.map(([a, b], i) => {
         const p1 = pt(a), p2 = pt(b)
         if (!p1 || !p2) return null
         return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} className="stroke-verde-600" strokeWidth={2} opacity={0.85} />
       })}
-      {landmarks.map((lm, i) => {
+      {landmarks && landmarks.map((lm, i) => {
         if (i < 11 || (lm.visibility ?? 1) < 0.5) return null // skip face points
         return <circle key={i} cx={ox + lm.x * dw} cy={oy + lm.y * dh} r={3} className="fill-verde-600" opacity={0.9} />
       })}
@@ -257,6 +265,8 @@ export default function FilmRoomPage() {
   const [angles, setAngles] = useState<Partial<Record<JointName, number>>>({})
   const [focusJoint, setFocusJoint] = useState<JointName | null>(null)
   const [reps, setReps] = useState<Rep[]>([])
+  const [barPath, setBarPath] = useState<Pt[]>([])
+  const [showBarPath, setShowBarPath] = useState(false)
   const repCounter = useRef(new RepCounter())
   const jointPicker = useRef(new FocusJointPicker())
 
@@ -267,6 +277,7 @@ export default function FilmRoomPage() {
     setFocusJoint(null)
     setPose(null)
     setAngles({})
+    setBarPath([])
   }, [])
 
   const toggleTracking = useCallback(async () => {
@@ -298,6 +309,12 @@ export default function FilmRoomPage() {
     let handle = 0
     let process: (() => void) | null = null
 
+    // Replacing the clip while tracking stays on (this effect re-runs on
+    // clipA) resets the video's currentTime to ~0, but MediaPipe's VIDEO-mode
+    // timestamp guard is monotonic and module-level — without this it would
+    // keep rejecting the new clip's early frames as "in the past".
+    import('./tracker').then(({ resetTrackerTimeline }) => { if (!cancelled) resetTrackerTimeline() })
+
     const onFrame = async () => {
       if (cancelled || trackingRef.current !== 'on') return
       const { detectFrame } = await import('./tracker')
@@ -313,6 +330,10 @@ export default function FilmRoomPage() {
         if (focus && a[focus] != null) {
           const rep = repCounter.current.push(frame.timestampMs, a[focus]!)
           if (rep) setReps([...repCounter.current.reps])
+        }
+        if (showBarPath) {
+          const p = barPathPoint(frame.landmarks)
+          if (p) setBarPath(path => (path.length > 600 ? path.slice(-600) : path).concat(p))
         }
       }
       schedule()
@@ -339,7 +360,7 @@ export default function FilmRoomPage() {
         v.removeEventListener('seeked', process)
       }
     }
-  }, [tracking, clipA])
+  }, [tracking, clipA, showBarPath])
 
   // new clip = new movement: restart the analysis state
   useEffect(() => { resetAnalysis() }, [clipA, resetAnalysis])
@@ -549,6 +570,16 @@ export default function FilmRoomPage() {
               </Button>
             )}
 
+            {clipA && tracking === 'on' && (
+              <Button
+                size="sm" variant={showBarPath ? 'primary' : 'secondary'}
+                onClick={() => { setShowBarPath(s => !s); setBarPath([]) }}
+                title="Trace the wrist/bar path across the lift and measure horizontal drift from vertical."
+              >
+                Bar path
+              </Button>
+            )}
+
             {clipA && clipB && (
               syncOffset === null ? (
                 <Button size="sm" variant="secondary" onClick={lockSync} title="Scrub both clips to the same moment (e.g. the start of the descent), then lock them together.">
@@ -596,7 +627,7 @@ export default function FilmRoomPage() {
                 <VideoPane
                   label="Client video" clip={clipA} onPick={pick(setClipA)} videoRef={videoA}
                   mirrored={mirrorA}
-                  overlay={tracking === 'on' ? <SkeletonOverlay landmarks={pose} videoRef={videoA} /> : null}
+                  overlay={tracking === 'on' ? <SkeletonOverlay landmarks={pose} videoRef={videoA} barPath={showBarPath ? barPath : undefined} /> : null}
                 />
                 <VideoPane
                   label="Reference video" clip={clipB} onPick={pick(setClipB)} videoRef={videoB}
@@ -612,7 +643,7 @@ export default function FilmRoomPage() {
                     style={{ opacity }}
                     className={`pointer-events-none absolute inset-0 h-full w-full object-contain ${mirrorB ? '-scale-x-100' : ''}`}
                   />
-                  {tracking === 'on' && <SkeletonOverlay landmarks={pose} videoRef={videoA} />}
+                  {tracking === 'on' && <SkeletonOverlay landmarks={pose} videoRef={videoA} barPath={showBarPath ? barPath : undefined} />}
                 </div>
               </div>
             )}
@@ -686,6 +717,29 @@ export default function FilmRoomPage() {
                   unit="%"
                 />
               </div>
+              {reps.length >= 2 && (() => {
+                const consistency = repConsistency(reps)
+                return (
+                  <div className="mt-3 grid grid-cols-2 gap-4 border-t border-line pt-3 sm:grid-cols-4">
+                    <Stat
+                      label="Depth consistency" unit={consistency.depth ? '%' : undefined}
+                      value={consistency.depth?.score ?? '—'}
+                      tone={consistency.depth && consistency.depth.score < 70 ? 'ember' : 'ink'}
+                    />
+                    <Stat
+                      label="Tempo consistency" unit={consistency.tempo ? '%' : undefined}
+                      value={consistency.tempo?.score ?? '—'}
+                      tone={consistency.tempo && consistency.tempo.score < 70 ? 'ember' : 'ink'}
+                    />
+                    {showBarPath && barPath.length > 5 && (
+                      <Stat
+                        label="Bar path drift" value={barPathDeviation(barPath).driftPct} unit="%"
+                        tone={barPathDeviation(barPath).driftPct > 15 ? 'ember' : 'verde'}
+                      />
+                    )}
+                  </div>
+                )
+              })()}
               {Object.keys(angles).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-3">
                   {(Object.entries(angles) as [JointName, number][]).map(([name, a]) => (

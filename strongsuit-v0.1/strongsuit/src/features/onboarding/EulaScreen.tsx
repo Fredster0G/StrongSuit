@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card, Button } from '@/design'
 import { trainerRepo } from '@/db/repo'
 import { nowIso } from '@/lib/core'
+import { Logomark } from '@/app/brand/Logomark'
 import type { Trainer } from '@/db/types'
 
 export default function EulaScreen({ trainer }: { trainer: Trainer }) {
@@ -19,9 +20,12 @@ export default function EulaScreen({ trainer }: { trainer: Trainer }) {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-bg p-6">
+    <div className="flex h-screen items-center justify-center bg-surface2 p-6">
       <Card className="flex h-full max-h-[600px] w-full max-w-2xl flex-col shadow-xl">
-        <h1 className="mb-4 text-xl font-bold tracking-tight text-ink">End User License Agreement</h1>
+        <div className="mb-4 flex items-center gap-3">
+          <Logomark size={36} />
+          <h1 className="text-xl font-bold tracking-tight text-ink">End User License Agreement</h1>
+        </div>
         <p className="mb-4 text-sm text-muted">
           {trainer.trainerName ? `${trainer.trainerName}, please` : 'Please'} read and accept the terms of service to use Coachwright.
         </p>

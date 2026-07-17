@@ -2,7 +2,7 @@
 // Pure functions: give them the rows and a month, they give back the numbers.
 // "month" everywhere is a 'yyyy-MM' string.
 
-import type { Client, Expense, Payment } from '@/db/types'
+import type { Client, Coupon, Expense, Invoice, InvoiceLineItem, Payment, Staff } from '@/db/types'
 
 /** Does a (possibly recurring) expense count against this month? */
 export function expenseAppliesTo(e: Expense, month: string): boolean {
@@ -39,6 +39,44 @@ export function gymCutForClient(client: Client, payments: Payment[], month: stri
 /** Total facility cut across all clients for the month. */
 export function gymCutForMonth(clients: Client[], payments: Payment[], month: string): number {
   return Math.round(clients.reduce((a, c) => a + gymCutForClient(c, payments, month), 0) * 100) / 100
+}
+
+/** Commission owed to one staff member: % of their assigned clients' income this month. */
+export function staffCommissionForMonth(staff: Staff, clients: Client[], payments: Payment[], month: string): number {
+  if (!staff.commissionPercent || staff.commissionPercent <= 0) return 0
+  const clientIds = new Set(clients.filter(c => c.staffId === staff.id).map(c => c.id))
+  const income = payments
+    .filter(p => clientIds.has(p.clientId) && p.date.startsWith(month))
+    .reduce((a, p) => a + (p.type === 'refund' ? -p.amount : p.amount), 0)
+  return Math.max(0, Math.round(income * (staff.commissionPercent / 100) * 100) / 100)
+}
+
+/** Total commissions owed across all staff for the month. */
+export function totalCommissionsForMonth(staffList: Staff[], clients: Client[], payments: Payment[], month: string): number {
+  return Math.round(staffList.reduce((a, s) => a + staffCommissionForMonth(s, clients, payments, month), 0) * 100) / 100
+}
+
+// ---- Invoicing & coupons ----
+
+/** Discount amount a coupon takes off a subtotal (never more than the subtotal, never negative). */
+export function couponDiscount(subtotal: number, coupon?: Coupon | null): number {
+  if (!coupon || !coupon.active || subtotal <= 0) return 0
+  if (coupon.expiresAt && coupon.expiresAt < new Date().toISOString().slice(0, 10)) return 0
+  const raw = coupon.kind === 'percent' ? subtotal * (coupon.value / 100) : coupon.value
+  return Math.round(Math.min(Math.max(0, raw), subtotal) * 100) / 100
+}
+
+export interface InvoiceTotals { subtotal: number; discountAmount: number; total: number }
+
+export function invoiceTotals(lineItems: InvoiceLineItem[], coupon?: Coupon | null): InvoiceTotals {
+  const subtotal = Math.round(lineItems.reduce((a, li) => a + li.amount * (li.qty ?? 1), 0) * 100) / 100
+  const discountAmount = couponDiscount(subtotal, coupon)
+  return { subtotal, discountAmount, total: Math.round((subtotal - discountAmount) * 100) / 100 }
+}
+
+/** Outstanding balance for a client: sent-but-unpaid invoice totals. */
+export function clientBalance(invoices: Invoice[]): number {
+  return Math.round(invoices.filter(i => i.status === 'sent').reduce((a, i) => a + i.total, 0) * 100) / 100
 }
 
 export interface ProfitPlan {

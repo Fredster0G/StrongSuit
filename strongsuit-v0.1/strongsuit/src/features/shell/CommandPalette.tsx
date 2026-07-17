@@ -1,11 +1,32 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Search, User, Settings, Plus } from 'lucide-react'
+import {
+  Search, User, Settings, Plus, LayoutDashboard, Users, ClipboardList, Dumbbell,
+  Clapperboard, CalendarDays, Wallet, BarChart3, UserCog, UserPlus, Trophy, RadioTower, Download,
+} from 'lucide-react'
 import { Dialog } from '@/design'
-import { clientsRepo } from '@/db/repo'
+import { clientsRepo, trainerRepo } from '@/db/repo'
+import { exportBackup, downloadText } from '@/db/backup'
+import { nowIso } from '@/lib/core'
 import { createFuzzyIndex } from '@/lib/fuzzy'
 import { fullName } from '@/lib/core'
+import type { ModuleKey } from '@/db/types'
+
+const NAV_ACTIONS: { to: string; title: string; icon: React.ReactNode; module?: ModuleKey }[] = [
+  { to: '/', title: 'Go to Today', icon: <LayoutDashboard size={18} className="text-muted" /> },
+  { to: '/clients', title: 'Go to Clients', icon: <Users size={18} className="text-muted" /> },
+  { to: '/programs', title: 'Go to Programs', icon: <ClipboardList size={18} className="text-muted" /> },
+  { to: '/exercises', title: 'Go to Exercises', icon: <Dumbbell size={18} className="text-muted" /> },
+  { to: '/film-room', title: 'Go to Film Room', icon: <Clapperboard size={18} className="text-muted" />, module: 'filmRoom' },
+  { to: '/calendar', title: 'Go to Calendar', icon: <CalendarDays size={18} className="text-muted" />, module: 'calendar' },
+  { to: '/business', title: 'Go to Business', icon: <Wallet size={18} className="text-muted" />, module: 'business' },
+  { to: '/team', title: 'Go to Team', icon: <UserCog size={18} className="text-muted" />, module: 'team' },
+  { to: '/leads', title: 'Go to Leads', icon: <UserPlus size={18} className="text-muted" />, module: 'leads' },
+  { to: '/leaderboard', title: 'Go to Leaderboards', icon: <Trophy size={18} className="text-muted" />, module: 'leaderboard' },
+  { to: '/sync', title: 'Go to Studio Link', icon: <RadioTower size={18} className="text-muted" />, module: 'sync' },
+  { to: '/reports', title: 'Go to Reports', icon: <BarChart3 size={18} className="text-muted" />, module: 'reports' },
+]
 
 interface Action {
   id: string
@@ -35,6 +56,8 @@ export default function CommandPalette() {
   }, [])
 
   const clients = useLiveQuery(() => clientsRepo.all(), [], [])
+  const trainer = useLiveQuery(() => trainerRepo.get())
+  const hiddenModules = trainer?.hiddenModules ?? []
 
   const actions = useMemo<Action[]>(() => {
     const arr: Action[] = [
@@ -57,8 +80,25 @@ export default function CommandPalette() {
         title: 'Create Program',
         icon: <Plus size={18} className="text-verde-600" />,
         onSelect: () => navigate('/programs') // User can click new program there
-      }
+      },
+      {
+        id: 'backup-now',
+        title: 'Back up now',
+        subtitle: 'Download a plain backup file',
+        icon: <Download size={18} className="text-verde-600" />,
+        onSelect: () => {
+          exportBackup().then(({ filename, text }) => {
+            downloadText(filename, text)
+            trainerRepo.patch({ lastBackupAt: nowIso() })
+          })
+        },
+      },
     ]
+
+    for (const nav of NAV_ACTIONS) {
+      if (nav.module && hiddenModules.includes(nav.module)) continue
+      arr.push({ id: `nav-${nav.to}`, title: nav.title, icon: nav.icon, onSelect: () => navigate(nav.to) })
+    }
 
     for (const c of clients) {
       arr.push({
@@ -71,7 +111,7 @@ export default function CommandPalette() {
     }
 
     return arr
-  }, [clients, navigate])
+  }, [clients, navigate, hiddenModules])
 
   const searchIndex = useMemo(() => createFuzzyIndex(actions, a => [a.title, a.subtitle || '']), [actions])
 
@@ -141,7 +181,7 @@ export default function CommandPalette() {
               return (
                 <button
                   key={action.id}
-                  className={`w-full flex items-center gap-3 px-3 py-3 rounded text-left transition-colors ${isSelected ? 'bg-verde-100/60 dark:bg-verde-900/20' : 'hover:bg-surface2'}`}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded text-left transition-colors ${isSelected ? 'bg-verde-100/60' : 'hover:bg-surface2'}`}
                   onMouseEnter={() => setSelectedIndex(i)}
                   onClick={() => {
                     handleClose()

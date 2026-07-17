@@ -14,7 +14,8 @@ export function createSessionLogTemplate(clientId: string, program: Program, day
       }))
       entries.push({
         exerciseId: ex.exerciseId,
-        sets
+        sets,
+        restSeconds: ex.restSeconds,
       })
     }
   }

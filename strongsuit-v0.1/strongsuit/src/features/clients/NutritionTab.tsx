@@ -4,9 +4,14 @@ import { Apple, Info } from 'lucide-react'
 import { Card, Field, Input, Select, Stat, EmptyState, Button, toast } from '@/design'
 import { clientsRepo, metricsRepo } from '@/db/repo'
 import type { Client, Units, Sex, ActivityLevel, NutritionGoal } from '@/db/types'
-import { nutritionPlan, ageFromBirthDate, toKg, ACTIVITY_FACTORS, type RationaleLine } from '@/lib/nutrition'
+import { nutritionPlan, ageFromBirthDate, toKg, ACTIVITY_FACTORS, carbCycle, dietBreakAdvice, type RationaleLine } from '@/lib/nutrition'
 import { goalPlan, GOAL_LABELS } from '@/lib/goals'
 import { today } from '@/lib/core'
+
+function weeksBetween(start: string, end: string): number {
+  const ms = new Date(end + 'T00:00:00').getTime() - new Date(start + 'T00:00:00').getTime()
+  return Math.max(0, Math.floor(ms / (7 * 86_400_000)))
+}
 
 function Why({ line }: { line: RationaleLine }) {
   return (
@@ -136,6 +141,70 @@ export default function NutritionTab({ client, units }: { client: Client; units:
             </div>
             <p className="mt-3 text-xs text-muted">{plan.weeklyRateNote}</p>
           </Card>
+
+          {/* Training-day / rest-day carb cycling */}
+          <Card>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Training-day carb cycling</h3>
+              <Field label="">
+                <Select
+                  value={client.trainingDaysPerWeek ?? 4}
+                  onChange={e => patch({ trainingDaysPerWeek: Number(e.target.value) })}
+                  className="!h-8 !w-40 text-xs"
+                >
+                  {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} training days/wk</option>)}
+                </Select>
+              </Field>
+            </div>
+            {(() => {
+              const cycled = carbCycle(plan, client.trainingDaysPerWeek ?? 4)
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-ctl border border-verde-600/30 bg-verde-100/40 p-3">
+                      <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-verde-700">Training days</p>
+                      <p className="font-mono tnum text-lg font-semibold text-ink">{cycled.trainingDay.calories} kcal</p>
+                      <p className="text-2xs text-muted">{cycled.trainingDay.carbsG}g carbs · {cycled.trainingDay.proteinG}g protein · {cycled.trainingDay.fatG}g fat</p>
+                    </div>
+                    <div className="rounded-ctl border border-line bg-surface2 p-3">
+                      <p className="mb-1 text-2xs font-semibold uppercase tracking-wide text-faint">Rest days</p>
+                      <p className="font-mono tnum text-lg font-semibold text-ink">{cycled.restDay.calories} kcal</p>
+                      <p className="text-2xs text-muted">{cycled.restDay.carbsG}g carbs · {cycled.restDay.proteinG}g protein · {cycled.restDay.fatG}g fat</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-2xs text-faint">{cycled.rationale.text}<span className="mt-0.5 block">Source: {cycled.rationale.source}</span></p>
+                </>
+              )
+            })()}
+          </Card>
+
+          {/* Diet-break awareness (cut goal only) */}
+          {effectiveGoal === 'cut' && (
+            <Card>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-ink">Diet duration</h3>
+                <Field label="">
+                  <Input
+                    type="date" defaultValue={client.dietPhaseStartDate ?? ''}
+                    onBlur={e => patch({ dietPhaseStartDate: e.target.value || undefined })}
+                    className="!h-8 !w-36 text-xs" placeholder="Cut start date"
+                  />
+                </Field>
+              </div>
+              {!client.dietPhaseStartDate ? (
+                <p className="text-xs text-muted">Set when this cut began to get a diet-break recommendation — long deficits benefit from a planned break back to maintenance.</p>
+              ) : (() => {
+                const weeks = weeksBetween(client.dietPhaseStartDate, today())
+                const advice = dietBreakAdvice(weeks)
+                return (
+                  <div>
+                    <p className={`text-sm ${advice.recommend ? 'text-ember-600' : 'text-ink'}`}>{advice.note}</p>
+                    <p className="mt-1 text-2xs text-faint">Source: {advice.source}</p>
+                  </div>
+                )
+              })()}
+            </Card>
+          )}
 
           {/* The why — every number defends itself */}
           <Card>

@@ -86,7 +86,7 @@ Extends Ironworks (spec §7): jade `#155E4E` + porcelain `#F7F6F3` + ember `#D97
 | Everfit | "Your clients don't want another account. Send them a Companion instead." |
 | Spreadsheets | "Keep the control. Lose the formulas breaking at 6am." |
 
-Fair-play rule: never claim we have live chat/cloud sync — we don't, by design, and the copy says why that's the feature.
+Fair-play rule: never claim live chat or *hosted* cloud sync as a default — there isn't one, by design, and the copy says why that's the feature. (v1.5 correction: Studio Link's E2EE device pairing + local WiFi/file sync are real and shippable; the *optional* self-hosted cloud relay prototype is real too but unwired/off by default. Marketing copy can say "sync your own devices, end-to-end encrypted, no cloud required" — it just can't imply Coachwright runs a server for you, because it doesn't.)
 
 ## 8. Voice examples (calibration)
 

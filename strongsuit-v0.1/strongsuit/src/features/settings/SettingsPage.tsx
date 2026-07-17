@@ -1,13 +1,65 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ShieldCheck, Upload, Download } from 'lucide-react'
-import { trainerRepo } from '@/db/repo'
+import { ShieldCheck, Upload, Download, Zap, Plus, Trash2, LayoutGrid } from 'lucide-react'
+import { trainerRepo, automationRulesRepo } from '@/db/repo'
 import { exportBackup, importBackup, isEncryptedBackup, downloadText, type ImportMode } from '@/db/backup'
 import { fullName, nowIso } from '@/lib/core'
 import { BACKUP_ACCEPT } from '@/lib/brand'
-import { Button, Card, SectionHeader, Field, Input, Select, toast, toastError, Dialog } from '@/design'
+import { Button, Card, SectionHeader, Field, Input, Select, toast, toastError, Dialog, Tag } from '@/design'
 import { clientsRepo } from '@/db/repo'
+import { DEFAULT_RULES, TRIGGER_LABELS } from '@/lib/automations'
+import type { AutomationTrigger, ModuleKey } from '@/db/types'
 import Guide from './Guide'
+import CloudCard from './CloudCard'
+
+const MODULE_INFO: { key: ModuleKey; label: string; hint: string }[] = [
+  { key: 'filmRoom', label: 'Film Room', hint: 'Video analysis & on-device movement tracking' },
+  { key: 'calendar', label: 'Calendar', hint: 'Appointments & recurring bookings' },
+  { key: 'business', label: 'Business', hint: 'Profit Planner, expenses, ledger' },
+  { key: 'team', label: 'Team', hint: 'Staff roster, locations, commissions — hide if you\'re solo' },
+  { key: 'leads', label: 'Leads', hint: 'CRM inquiry pipeline' },
+  { key: 'leaderboard', label: 'Leaderboards', hint: 'Cross-client rankings & challenges' },
+  { key: 'sync', label: 'Studio Link', hint: 'Device pairing & sync' },
+  { key: 'reports', label: 'Reports', hint: 'Cross-client analytics' },
+]
+
+function ModulesCard() {
+  const trainer = useLiveQuery(() => trainerRepo.get())
+  if (!trainer) return null
+  const hidden = new Set(trainer.hiddenModules ?? [])
+
+  async function toggle(key: ModuleKey) {
+    const next = new Set(trainer!.hiddenModules ?? [])
+    if (next.has(key)) next.delete(key); else next.add(key)
+    await trainerRepo.patch({ hiddenModules: Array.from(next) })
+  }
+
+  return (
+    <Card>
+      <div className="mb-1 flex items-center gap-2">
+        <LayoutGrid size={16} className="text-verde-600" />
+        <p className="font-display text-base font-semibold">Modules</p>
+      </div>
+      <p className="mb-3 text-xs text-muted">
+        Independent coaches don't need a Team roster or a Leads pipeline — hide what you don't use. Hidden modules stay off the sidebar and command palette; your data isn't deleted, and you can turn anything back on any time.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {MODULE_INFO.map(m => (
+          <label key={m.key} className="flex items-start gap-2.5 rounded-ctl border border-line px-3 py-2.5">
+            <input
+              type="checkbox" checked={!hidden.has(m.key)} onChange={() => toggle(m.key)}
+              className="mt-0.5 accent-[var(--verde-600)]"
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink">{m.label}</span>
+              <span className="block text-2xs text-faint">{m.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </Card>
+  )
+}
 
 function BrandCard() {
   const trainer = useLiveQuery(() => trainerRepo.get())
@@ -49,6 +101,106 @@ function BrandCard() {
         </Field>
       </div>
       <p className="mt-3 text-2xs text-faint">Your brand appears on printed programs and every Companion file you send to clients.</p>
+    </Card>
+  )
+}
+
+function AddRuleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: '', trigger: 'no-session-days' as AutomationTrigger,
+    thresholdDays: '7', thresholdSessions: '2', message: '',
+  })
+  const needsDays = form.trigger === 'no-session-days' || form.trigger === 'checkin-overdue-days' || form.trigger === 'payment-overdue-days'
+  const needsCount = form.trigger === 'package-low-sessions'
+  const placeholder = needsDays ? 'No session in {days} days' : needsCount ? '{count} sessions left' : 'Needs attention'
+
+  async function save() {
+    if (!form.name.trim()) return
+    await automationRulesRepo.create({
+      name: form.name.trim(), trigger: form.trigger,
+      thresholdDays: needsDays ? Number(form.thresholdDays) || 7 : undefined,
+      thresholdSessions: needsCount ? Number(form.thresholdSessions) || 2 : undefined,
+      message: form.message.trim() || placeholder,
+      active: true,
+    })
+    toast(`"${form.name}" rule added.`)
+    setForm({ name: '', trigger: 'no-session-days', thresholdDays: '7', thresholdSessions: '2', message: '' })
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} title="Add automation rule" width={460}>
+      <div className="space-y-3">
+        <Field label="Name"><Input autoFocus value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Payment reminder" /></Field>
+        <Field label="Trigger">
+          <Select value={form.trigger} onChange={e => setForm(f => ({ ...f, trigger: e.target.value as AutomationTrigger }))}>
+            {Object.entries(TRIGGER_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </Select>
+        </Field>
+        {needsDays && (
+          <Field label="Days"><Input type="number" min="1" value={form.thresholdDays} onChange={e => setForm(f => ({ ...f, thresholdDays: e.target.value }))} className="font-mono tnum" /></Field>
+        )}
+        {needsCount && (
+          <Field label="Sessions remaining"><Input type="number" min="0" value={form.thresholdSessions} onChange={e => setForm(f => ({ ...f, thresholdSessions: e.target.value }))} className="font-mono tnum" /></Field>
+        )}
+        <Field label="Message" hint={`use ${needsDays ? '{days}' : needsCount ? '{count}' : 'plain text'} for the live number`}>
+          <Input value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} placeholder={placeholder} />
+        </Field>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={save} disabled={!form.name.trim()}>Add rule</Button>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+function AutomationsCard() {
+  const [addOpen, setAddOpen] = useState(false)
+  const rules = useLiveQuery(() => automationRulesRepo.all(), [], [])
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2"><Zap size={16} className="text-verde-600" /><p className="font-display text-base font-semibold">Automations</p></div>
+        <Button size="sm" onClick={() => setAddOpen(true)}><Plus size={14} /> Add rule</Button>
+      </div>
+      <p className="mb-3 text-xs text-muted">
+        Rules re-check your local data every time the dashboard opens and surface a "needs attention" card — there's no background job, no server, and nothing runs while the app is closed.
+      </p>
+      <div className="mb-3">
+        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Always on</p>
+        <div className="space-y-1">
+          {DEFAULT_RULES.map(r => (
+            <div key={r.id} className="flex items-center justify-between rounded-ctl border border-line px-3 py-2 text-sm">
+              <span className="text-ink">{r.name}</span>
+              <Tag>{TRIGGER_LABELS[r.trigger]}</Tag>
+            </div>
+          ))}
+        </div>
+      </div>
+      {rules.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Your rules</p>
+          <div className="space-y-1">
+            {rules.map(r => (
+              <div key={r.id} className="flex items-center justify-between rounded-ctl border border-line px-3 py-2 text-sm">
+                <div>
+                  <span className="text-ink">{r.name}</span>
+                  <span className="ml-2 text-2xs text-faint">{r.message}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => automationRulesRepo.update(r.id, { active: !r.active })} className="text-2xs text-muted hover:text-ink">
+                    {r.active ? 'On' : 'Off'}
+                  </button>
+                  <button onClick={async () => { await automationRulesRepo.remove(r.id); toast('Rule removed.') }} className="text-faint hover:text-signal-600"><Trash2 size={13} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <AddRuleDialog open={addOpen} onClose={() => setAddOpen(false)} />
     </Card>
   )
 }
@@ -229,7 +381,7 @@ function DataCard() {
         <div className="mt-3 flex justify-end">
           <Button 
             variant="ghost" 
-            className="text-ember-600 hover:bg-ember-50 hover:text-ember-700 dark:hover:bg-ember-900/20" 
+            className="text-ember-600 hover:bg-ember-500/10 hover:text-ember-700"
             onClick={wipeClient} 
             disabled={confirmName !== fullName(targetClient)}
           >
@@ -246,6 +398,9 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <SectionHeader title="Settings" />
       <BrandCard />
+      <ModulesCard />
+      <CloudCard />
+      <AutomationsCard />
       <Guide />
       <BackupCard />
       <RestoreCard />

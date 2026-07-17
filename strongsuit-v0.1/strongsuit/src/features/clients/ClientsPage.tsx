@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Users, Plus, Search } from 'lucide-react'
+import { Users, Plus, Search, Upload } from 'lucide-react'
 import { clientsRepo } from '@/db/repo'
 import type { Client, ClientStatus } from '@/db/types'
 import { fullName, today } from '@/lib/core'
+import { importClientPackageText } from '@/db/portability'
+import { parseCsv } from '@/lib/csv'
+import ImportCsvDialog from './ImportCsvDialog'
 import {
   Button, Input, Select, Field, Textarea, Card, SectionHeader,
-  EmptyState, Tag, Avatar, Dialog, Table, toast,
+  EmptyState, Tag, Avatar, Dialog, Table, toast, toastError,
 } from '@/design'
 
 const STATUS_TONE: Record<ClientStatus, 'verde' | 'neutral' | 'red'> = {
@@ -58,6 +61,30 @@ export default function ClientsPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | ClientStatus>('all')
   const [showNew, setShowNew] = useState(false)
+  const importRef = useRef<HTMLInputElement>(null)
+  const [csvImport, setCsvImport] = useState<{ headerRow: string[]; dataRows: string[][] } | null>(null)
+
+  async function onImportFile(file: File) {
+    const text = await file.text()
+    const isJson = file.name.toLowerCase().endsWith('.json') || text.trimStart().startsWith('{') || text.trimStart().startsWith('[')
+    if (isJson) {
+      try {
+        const reports = await importClientPackageText(text)
+        toast(reports.length === 1
+          ? `${reports[0].clientName} imported — ${reports[0].recordsImported} records.`
+          : `${reports.length} clients imported.`)
+      } catch (e) {
+        toastError(e instanceof Error ? e.message : "Couldn't import that file.")
+      }
+      return
+    }
+    const rows = parseCsv(text)
+    if (rows.length < 2) {
+      toastError("That CSV doesn't have any data rows to import.")
+      return
+    }
+    setCsvImport({ headerRow: rows[0], dataRows: rows.slice(1) })
+  }
 
   const filtered = useMemo(() => {
     if (!clients) return []
@@ -75,9 +102,18 @@ export default function ClientsPage() {
       <SectionHeader
         title="Clients"
         action={
-          <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>
-            <Plus size={14} /> New client
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={importRef} type="file" accept=".json,application/json,.csv,text/csv" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = '' }}
+            />
+            <Button variant="ghost" size="sm" onClick={() => importRef.current?.click()} title="Import a Coachwright client-package file, or a client-roster CSV exported from TrueCoach, Trainerize, and similar platforms">
+              <Upload size={14} /> Import clients
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>
+              <Plus size={14} /> New client
+            </Button>
+          </div>
         }
       />
 
@@ -122,6 +158,14 @@ export default function ClientsPage() {
       )}
 
       <NewClientDialog open={showNew} onClose={() => setShowNew(false)} />
+      {csvImport && (
+        <ImportCsvDialog
+          headerRow={csvImport.headerRow}
+          dataRows={csvImport.dataRows}
+          open={!!csvImport}
+          onClose={() => setCsvImport(null)}
+        />
+      )}
     </div>
   )
 }

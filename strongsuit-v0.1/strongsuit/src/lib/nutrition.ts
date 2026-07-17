@@ -153,6 +153,74 @@ export function nutritionPlan(opts: {
   }
 }
 
+// ---- Training-day / rest-day carb cycling (spec §4.18c expansion) ----
+// Keeps protein and average weekly calories constant; shifts carbohydrate
+// toward training days (fuel + recovery when it's used) and fat toward rest
+// days (satiety when carbs are lower) — a standard periodized-nutrition
+// pattern, not a novel idea of this app's.
+export interface DayTargets { calories: number; proteinG: number; carbsG: number; fatG: number }
+export interface CycledPlan {
+  trainingDay: DayTargets
+  restDay: DayTargets
+  rationale: RationaleLine
+}
+
+export function carbCycle(plan: NutritionPlan, trainingDaysPerWeek: number): CycledPlan {
+  const days = Math.max(1, Math.min(7, trainingDaysPerWeek))
+  const restDays = 7 - days
+  // Shift ~15% of average calories from rest days to training days, entirely
+  // via carbohydrate (protein and fat stay flat across both day types).
+  const shiftKcal = plan.calories * 0.15
+  const trainingCarbsG = plan.carbsG + Math.round(shiftKcal / 4)
+  const restCarbsG = restDays > 0 ? Math.max(0, plan.carbsG - Math.round((shiftKcal * days) / Math.max(1, restDays) / 4)) : plan.carbsG
+
+  const trainingDay: DayTargets = {
+    calories: Math.round(plan.proteinG * 4 + plan.fatG * 9 + trainingCarbsG * 4),
+    proteinG: plan.proteinG, fatG: plan.fatG, carbsG: trainingCarbsG,
+  }
+  const restDay: DayTargets = {
+    calories: Math.round(plan.proteinG * 4 + plan.fatG * 9 + restCarbsG * 4),
+    proteinG: plan.proteinG, fatG: plan.fatG, carbsG: restCarbsG,
+  }
+
+  return {
+    trainingDay, restDay,
+    rationale: {
+      text: `Training days: ${trainingDay.carbsG}g carbs (${trainingDay.calories} kcal). Rest days: ${restDay.carbsG}g carbs (${restDay.calories} kcal). Protein and fat stay flat — only carbohydrate shifts to match training demand, and the weekly average still lands on the same target as the flat plan above.`,
+      source: 'Periodized/nutrient-timing carb cycling: Kerksick et al. 2018 (ISSN nutrient timing position stand); Aragon & Schoenfeld 2013 (nutrient timing review)',
+    },
+  }
+}
+
+// ---- Diet-break awareness (spec §4.18c expansion) ----
+export interface DietBreakAdvice { recommend: boolean; note: string; source: string }
+
+/** After enough consecutive weeks in a deficit, research supports a planned
+ *  1–2 week return to maintenance ("diet break") — better long-run adherence
+ *  and some evidence of protecting resting metabolic rate, without giving
+ *  back meaningful fat-loss progress. */
+export function dietBreakAdvice(weeksInDeficit: number): DietBreakAdvice {
+  if (weeksInDeficit >= 12) {
+    return {
+      recommend: true,
+      note: `${weeksInDeficit} weeks in a deficit is a long block. A 1–2 week diet break (eat at maintenance, keep training) is well past due — it tends to improve adherence and may protect against metabolic adaptation, without erasing fat-loss progress.`,
+      source: 'Trexler, Smith-Ryan & Norton 2014 (JISSN) — adaptive thermogenesis & diet breaks; Peos et al. 2019 (Sports) intermittent energy restriction review',
+    }
+  }
+  if (weeksInDeficit >= 8) {
+    return {
+      recommend: true,
+      note: `${weeksInDeficit} weeks in — a 1–2 week maintenance break in the next couple of weeks is a reasonable, evidence-supported call, especially if adherence or motivation is slipping.`,
+      source: 'Trexler, Smith-Ryan & Norton 2014 (JISSN)',
+    }
+  }
+  return {
+    recommend: false,
+    note: `${weeksInDeficit} weeks in — no break needed yet; most protocols wait 8–12+ weeks before the first one.`,
+    source: 'Trexler, Smith-Ryan & Norton 2014 (JISSN)',
+  }
+}
+
 // ---- Percent-based warm-up ramp (surfaced next to progression suggestions) ----
 export interface WarmupSet { pct: number; load: number; reps: number }
 

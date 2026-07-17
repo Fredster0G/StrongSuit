@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
+import { Check, ChevronLeft, Plus, Trash2, Loader2, PlayCircle } from 'lucide-react'
 import { Button, Card, SectionHeader } from '@/design'
 import { toast, toastError } from '@/design/overlay'
 import { today, stamp } from '@/lib/core'
@@ -8,6 +8,9 @@ import { clientsRepo, programsRepo, exercisesRepo, logsRepo, trainerRepo } from 
 import type { SessionLog, Client, Exercise, LogEntry, Trainer } from '@/db/types'
 import { createSessionLogTemplate } from './api'
 import { Stepper } from './Stepper'
+import { RestTimer } from './RestTimer'
+import { VideoViewerDialog } from '../library/VideoViewer'
+import { exerciseVideos } from '@/lib/videoEmbed'
 import ExerciseSearch from '../programs/builder/ExerciseSearch'
 
 export default function SessionLoggerPage() {
@@ -26,6 +29,9 @@ export default function SessionLoggerPage() {
   const [saving, setSaving] = useState(false)
   
   const [searchOpen, setSearchOpen] = useState(false)
+  const [restSeconds, setRestSeconds] = useState<number | null>(null)
+  const [restKey, setRestKey] = useState(0)
+  const [videoFor, setVideoFor] = useState<Exercise | null>(null)
 
   // Initialize
   useEffect(() => {
@@ -164,7 +170,14 @@ export default function SessionLoggerPage() {
             return (
               <Card key={eIdx} className="overflow-hidden">
                 <div className="flex items-center justify-between mb-4 border-b border-line pb-3">
-                  <h3 className="font-bold text-ink">{ex?.name || 'Unknown Exercise'}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-ink">{ex?.name || 'Unknown Exercise'}</h3>
+                    {ex && exerciseVideos(ex).length > 0 && (
+                      <button onClick={() => setVideoFor(ex)} className="text-verde-600 hover:text-verde-700" title="Watch video" aria-label="Watch video">
+                        <PlayCircle size={16} />
+                      </button>
+                    )}
+                  </div>
                   <Button variant="ghost" size="sm" onClick={() => removeEntry(eIdx)} className="text-faint hover:text-signal-600">
                     <Trash2 size={14} />
                   </Button>
@@ -178,11 +191,18 @@ export default function SessionLoggerPage() {
                       updateEntry(eIdx, { sets: newSets })
                     }
                     return (
-                      <div key={sIdx} className={`flex flex-col sm:flex-row sm:items-center gap-4 p-3 rounded-lg border ${set.done ? 'border-brand-500/30 bg-brand-50/50 dark:bg-brand-950/20' : 'border-line bg-surface'}`}>
+                      <div key={sIdx} className={`flex flex-col sm:flex-row sm:items-center gap-4 p-3 rounded-lg border ${set.done ? 'border-verde-600/30 bg-verde-100/60' : 'border-line bg-surface'}`}>
                         {/* Status Toggle (Big touch target) */}
-                        <button 
-                          onClick={() => updateSet({ done: !set.done })}
-                          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${set.done ? 'bg-brand-500 text-white' : 'bg-iron-100 text-faint hover:bg-iron-200 dark:bg-iron-800 dark:hover:bg-iron-700'}`}
+                        <button
+                          onClick={() => {
+                            const nowDone = !set.done
+                            updateSet({ done: nowDone })
+                            if (nowDone) {
+                              setRestSeconds(entry.restSeconds ?? trainer?.defaultRestSeconds ?? 90)
+                              setRestKey(k => k + 1)
+                            }
+                          }}
+                          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${set.done ? 'bg-verde-600 text-white' : 'bg-surface2 text-faint hover:bg-line'}`}
                         >
                           <Check size={20} strokeWidth={set.done ? 3 : 2} />
                         </button>
@@ -249,7 +269,7 @@ export default function SessionLoggerPage() {
                   <input
                     type="text"
                     placeholder="Note for this exercise..."
-                    className="flex-1 ml-4 bg-transparent border-b border-dashed border-line text-sm focus:outline-none focus:border-brand-500"
+                    className="flex-1 ml-4 bg-transparent border-b border-dashed border-line text-sm focus:outline-none focus:border-verde-600"
                     value={entry.notes || ''}
                     onChange={e => updateEntry(eIdx, { notes: e.target.value })}
                   />
@@ -268,10 +288,21 @@ export default function SessionLoggerPage() {
         )}
       </div>
 
-      <ExerciseSearch 
-        open={searchOpen} 
-        onClose={() => setSearchOpen(false)} 
-        onSelect={(ex) => handleAddExercise(ex.id)} 
+      <ExerciseSearch
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSelect={(ex) => handleAddExercise(ex.id)}
+      />
+
+      {restSeconds != null && (
+        <RestTimer key={restKey} seconds={restSeconds} onDismiss={() => setRestSeconds(null)} />
+      )}
+
+      <VideoViewerDialog
+        title={videoFor?.name ?? 'Video'}
+        links={videoFor ? exerciseVideos(videoFor) : []}
+        open={!!videoFor}
+        onClose={() => setVideoFor(null)}
       />
     </div>
   )

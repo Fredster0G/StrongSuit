@@ -2,26 +2,34 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   LayoutDashboard, Users, ClipboardList, Dumbbell, Clapperboard,
-  CalendarDays, Wallet, BarChart3, Settings, ShieldCheck, ShieldAlert, Loader2, RadioTower
+  CalendarDays, Wallet, BarChart3, Settings, ShieldCheck, ShieldAlert, Loader2, RadioTower,
+  UserCog, UserPlus, Trophy
 } from 'lucide-react'
 import { trainerRepo } from '@/db/repo'
 import { daysSince } from '@/lib/core'
 import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
+import { Logomark } from './brand/Logomark'
 import { Toaster } from '@/design'
 import CommandPalette from '@/features/shell/CommandPalette'
 import OnboardingWizard from '@/features/onboarding/OnboardingWizard'
 import EulaScreen from '@/features/onboarding/EulaScreen'
+import type { ModuleKey } from '@/db/types'
 
-const NAV = [
+const NAV_CORE = [
   { to: '/', label: 'Today', icon: LayoutDashboard, end: true },
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/programs', label: 'Programs', icon: ClipboardList },
   { to: '/exercises', label: 'Exercises', icon: Dumbbell },
-  { to: '/film-room', label: 'Film Room', icon: Clapperboard },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { to: '/business', label: 'Business', icon: Wallet },
-  { to: '/sync', label: 'Studio Link', icon: RadioTower },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/film-room', label: 'Film Room', icon: Clapperboard, module: 'filmRoom' as ModuleKey },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, module: 'calendar' as ModuleKey },
+]
+const NAV_STUDIO = [
+  { to: '/business', label: 'Business', icon: Wallet, module: 'business' as ModuleKey },
+  { to: '/team', label: 'Team', icon: UserCog, module: 'team' as ModuleKey },
+  { to: '/leads', label: 'Leads', icon: UserPlus, module: 'leads' as ModuleKey },
+  { to: '/leaderboard', label: 'Leaderboards', icon: Trophy, module: 'leaderboard' as ModuleKey },
+  { to: '/sync', label: 'Studio Link', icon: RadioTower, module: 'sync' as ModuleKey },
+  { to: '/reports', label: 'Reports', icon: BarChart3, module: 'reports' as ModuleKey },
 ]
 
 function BackupHealth() {
@@ -59,21 +67,47 @@ export default function Shell() {
     return <EulaScreen trainer={trainer} />
   }
 
+  const hidden = new Set(trainer.hiddenModules ?? [])
+  const coreItems = NAV_CORE.filter(item => !item.module || !hidden.has(item.module))
+  const studioItems = NAV_STUDIO.filter(item => !hidden.has(item.module))
+
   return (
     <div className="flex h-full">
       <aside className="flex w-52 shrink-0 flex-col border-r border-line bg-surface">
-        <div className="px-4 pb-4 pt-5">
-          <p className="font-display text-base font-bold tracking-tight text-ink">{APP_NAME}</p>
-          <p className="text-2xs text-faint">{APP_TAGLINE}</p>
+        <div className="flex items-center gap-2 px-4 pb-4 pt-5">
+          <Logomark size={26} />
+          <div>
+            <p className="font-display text-base font-bold tracking-tight text-ink">{APP_NAME}</p>
+            <p className="text-2xs text-faint">{APP_TAGLINE}</p>
+          </div>
         </div>
-        <nav className="flex-1 space-y-0.5 px-2">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+          {coreItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }: { isActive: boolean }) =>
                 // Signature element #4: 3px verde spine on the active item
+                `relative flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-verde-100/60 text-ink before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-verde-600'
+                    : 'text-muted hover:bg-surface2 hover:text-ink'
+                }`
+              }
+            >
+              <Icon size={16} strokeWidth={1.5} />
+              {label}
+            </NavLink>
+          ))}
+          {studioItems.length > 0 && (
+            <p className="mb-0.5 mt-3 px-3 text-2xs font-semibold uppercase tracking-wide text-faint">Studio</p>
+          )}
+          {studioItems.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }: { isActive: boolean }) =>
                 `relative flex items-center gap-2.5 rounded-ctl px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-verde-100/60 text-ink before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-verde-600'

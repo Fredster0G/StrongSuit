@@ -1,11 +1,68 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Inbox, Gauge } from 'lucide-react'
-import { Card, Button, Input, EmptyState, Dialog, Label } from '@/design'
-import { checkInsRepo } from '@/db/repo'
+import { Plus, Inbox, Gauge, Flame, Trash2 } from 'lucide-react'
+import { Card, Button, Input, EmptyState, Dialog, Label, toast } from '@/design'
+import { checkInsRepo, habitsRepo, habitEntriesRepo } from '@/db/repo'
 import type { CheckIn } from '@/db/types'
-import { nowIso, newId } from '@/lib/core'
+import { nowIso, newId, today as todayStr } from '@/lib/core'
 import { readinessFromCheckIn, READINESS_COPY } from '@/lib/readiness'
+import { currentStreak } from '@/lib/habits'
+
+/** Daily habit checklist with streaks (spec §4.26b). */
+function HabitsCard({ clientId }: { clientId: string }) {
+  const habits = useLiveQuery(() => habitsRepo.forClient(clientId), [clientId], [])
+  const entries = useLiveQuery(() => habitEntriesRepo.forClient(clientId), [clientId], [])
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const today = todayStr()
+
+  async function addHabit() {
+    if (!name.trim()) return
+    await habitsRepo.create({ clientId, name: name.trim(), active: true })
+    setName(''); setAdding(false)
+    toast('Habit added.')
+  }
+
+  const active = habits.filter(h => h.active)
+
+  return (
+    <Card className="mb-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted"><Flame size={14} /> Habits</div>
+        <Button size="sm" variant="ghost" onClick={() => setAdding(a => !a)}><Plus size={13} /> Add habit</Button>
+      </div>
+      {adding && (
+        <div className="mb-2 flex gap-2">
+          <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. 8,000 steps" onKeyDown={e => e.key === 'Enter' && addHabit()} />
+          <Button size="sm" variant="primary" onClick={addHabit}>Add</Button>
+        </div>
+      )}
+      {active.length === 0 ? (
+        <p className="text-xs text-muted">No habits tracked yet — small daily targets (steps, water, protein, sleep) that build the readiness score over time.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {active.map(h => {
+            const habitEntries = entries.filter(e => e.habitId === h.id)
+            const doneToday = habitEntries.find(e => e.date === today)?.done ?? false
+            const streak = currentStreak(habitEntries, today)
+            return (
+              <div key={h.id} className="flex items-center justify-between rounded-ctl border border-line px-3 py-2">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input type="checkbox" checked={doneToday} onChange={() => habitEntriesRepo.toggle(h.id, clientId, today)} className="accent-[var(--verde-600)]" />
+                  {h.name}
+                </label>
+                <div className="flex items-center gap-2">
+                  {streak > 0 && <span className="flex items-center gap-1 font-mono tnum text-2xs text-ember-600"><Flame size={11} /> {streak}d</span>}
+                  <button onClick={async () => { await habitsRepo.update(h.id, { active: false }); toast(`${h.name} archived.`) }} className="text-faint hover:text-signal-600"><Trash2 size={12} /></button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Card>
+  )
+}
 
 /** Today's-readiness card computed from the latest check-in (spec §4.18b). */
 function ReadinessCard({ latest }: { latest: CheckIn }) {
@@ -150,11 +207,13 @@ export default function CheckInsTab({ clientId }: CheckInsTabProps) {
         </Button>
       </div>
 
+      <HabitsCard clientId={clientId} />
+
       {checkins.length === 0 ? (
-        <EmptyState 
+        <EmptyState
           icon={<Inbox size={28} strokeWidth={1.5} />}
-          title="No check-ins yet" 
-          body="Log a check-in manually or import data from a Companion App." 
+          title="No check-ins yet"
+          body="Log a check-in manually or import data from a Companion App."
         />
       ) : (
         <div className="space-y-4">

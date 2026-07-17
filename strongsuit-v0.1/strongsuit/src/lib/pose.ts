@@ -166,3 +166,77 @@ export const BONES: [number, number][] = [
   [23, 25], [25, 27], [24, 26], [26, 28],                  // legs
   [27, 31], [28, 32],                                      // feet
 ]
+
+// ---- Set-level consistency (spec §4.16c biomechanics expansion) ----
+export interface ConsistencyScore {
+  score: number   // 0–100, higher = more repeatable
+  cv: number      // coefficient of variation (%) the score is derived from
+}
+
+/** Coefficient of variation (SD/mean) turned into a 0–100 "consistency"
+ *  score — the standard way exercise-science literature expresses rep-to-rep
+ *  repeatability of a measured quantity. Lower CV = higher score. */
+function cvScore(values: number[]): ConsistencyScore | null {
+  if (values.length < 2) return null
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  if (mean === 0) return null
+  const variance = values.reduce((a, v) => a + (v - mean) ** 2, 0) / values.length
+  const sd = Math.sqrt(variance)
+  const cv = (sd / Math.abs(mean)) * 100
+  return { score: Math.max(0, Math.round(100 - cv * 4)), cv: Math.round(cv * 10) / 10 }
+}
+
+export interface SetConsistency {
+  depth: ConsistencyScore | null
+  tempo: ConsistencyScore | null
+}
+
+/** How repeatable a set was, rep to rep — depth and tempo. A coach reads a
+ *  low depth-consistency score as "reps are getting shallower/inconsistent,"
+ *  a classic fatigue or technique-breakdown signal. */
+export function repConsistency(reps: Rep[]): SetConsistency {
+  return {
+    depth: cvScore(reps.map(r => r.depth)),
+    tempo: cvScore(reps.map(r => r.eccentricMs + r.concentricMs)),
+  }
+}
+
+// ---- Bar-path tracking (spec §4.16c) ----
+/** Wrist landmarks — the practical stand-in for "the bar" when a client grips
+ *  a barbell; both wrists average out minor left/right camera-angle noise. */
+const WRIST_LANDMARKS: [number, number] = [15, 16]
+
+export function barPathPoint(lms: Lm[]): Pt | null {
+  const pts = WRIST_LANDMARKS.map(i => lms[i]).filter(p => p && (p.visibility ?? 1) >= MIN_VISIBILITY)
+  if (!pts.length) return null
+  return {
+    x: pts.reduce((a, p) => a + p.x, 0) / pts.length,
+    y: pts.reduce((a, p) => a + p.y, 0) / pts.length,
+  }
+}
+
+export interface Pt { x: number; y: number }
+
+export interface BarPathResult {
+  /** horizontal drift from the starting x, in % of the tracked path's own
+   *  width — 0 = perfectly vertical bar path, higher = more forward/backward drift. */
+  driftPct: number
+  /** the point of maximum horizontal drift, useful to mark on the overlay. */
+  worstPoint: Pt | null
+}
+
+/** Deviation of a tracked path from vertical — the classic "bar path"
+ *  analysis coaches use to spot a bar drifting forward off the mid-foot. */
+export function barPathDeviation(points: Pt[]): BarPathResult {
+  if (points.length < 2) return { driftPct: 0, worstPoint: null }
+  const xs = points.map(p => p.x)
+  const startX = xs[0]
+  const spanY = Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y)) || 1
+  let worstDrift = 0
+  let worstPoint: Pt | null = null
+  for (const p of points) {
+    const drift = Math.abs(p.x - startX)
+    if (drift > worstDrift) { worstDrift = drift; worstPoint = p }
+  }
+  return { driftPct: Math.round((worstDrift / spanY) * 1000) / 10, worstPoint }
+}

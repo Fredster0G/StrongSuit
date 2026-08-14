@@ -1,4 +1,13 @@
-node_modules/ 
-release/ 
-*.exe 
-*.asar 
+node_modules/
+release/
+dist/
+dist-electron/
+*.exe
+*.asar
+
+# The relay's SQLite database. It is created automatically on first run and
+# fills up with real (encrypted) client sync payloads and message rows during
+# testing — it must never be committed or shipped inside a build (debt #19).
+*.db
+*.db-shm
+*.db-wal

@@ -49,7 +49,7 @@ export default function CloudCard() {
           return (
             <button
               key={t.id} onClick={() => selectTier(t.id)}
-              className={`flex flex-col gap-2 rounded-card border p-3 text-left transition-colors ${active ? 'border-verde-600 bg-verde-100/40' : 'border-line hover:bg-surface2'}`}
+              className={`flex flex-col gap-2 rounded-card border p-3 text-start transition-colors ${active ? 'border-verde-600 bg-verde-100/40' : 'border-line hover:bg-surface2'}`}
             >
               <div className="flex items-center justify-between">
                 <Icon size={18} className={active ? 'text-verde-600' : 'text-faint'} />

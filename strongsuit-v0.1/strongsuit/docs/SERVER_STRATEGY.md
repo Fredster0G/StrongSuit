@@ -53,7 +53,22 @@ Coachwright ships with **one app, three ways to run its optional cloud relay** �
 
 **Multi-tenancy — per-coach API keys:** the original prototype had one shared `API_KEY` for the whole server, fine for a single self-hosted coach but wrong for a shared managed instance serving many $15/mo customers (one coach's key must never read another's data). `sync-server/server.ts` now has an `api_keys` table; `POST /keys/register` (gated behind a separate `ADMIN_KEY`, operator-only) issues a coach a real per-coach key after payment is confirmed. **There is no Stripe webhook wired to this** — provisioning today is a manual step by whoever runs the managed service (check the payment came in, hit `/keys/register` once). Automating that is a reasonable future addition, not a blocker to launching the tier as-is (a $15/mo business with a manual 30-second provisioning step per customer is completely normal at low volume).
 
-**What a coach sees in Settings, honestly:** "Fully local — free, forever, nothing leaves this device." / "Self-hosted — free, you run a small server yourself, here's the file." / "Managed by us — $15/month, we run it so you don't have to." No tier is framed as required; the app's core value (own your data, pay once) holds at every tier because the relay only ever stores ciphertext it can't read.
+**What a coach sees in Settings, honestly:** "Fully local — free, forever, nothing leaves this device." / "Self-hosted — free, you run a small server yourself, here's the file." / "Managed by us — $15/month, we run it so you don't have to." No tier is framed as required; the data-privacy promise (client data never leaves the coach's device unencrypted) holds at every tier because the relay only ever stores ciphertext it can't read — regardless of whether the coach is on the free Coachwright tier or Membership (see §2.6 below and `docs/MEMBERSHIP.md`).
+
+### 2.6 The one real exception to "never becomes the payment processor" — Membership billing (S15)
+
+§3 below's "don't build a checkout" doctrine is about Coachwright facilitating payments **between a coach
+and their client** — that stays exactly as written; nothing changed there. What's new S15 is Coachwright
+billing **its own users** for the app itself: Coachwright Membership, $29/mo, replacing the one-time
+licence purchase as the paid coach tier (see `docs/MEMBERSHIP.md` for the full reasoning and runbook).
+
+This still respects the spirit of §3's doctrine, not just the letter: `sync-server/server.ts`'s new
+`/membership/*` routes create a Stripe Checkout session and a Stripe billing portal session — both fully
+hosted by Stripe. **No card number, expiry, or CVC ever reaches Coachwright's server or the app.** What the
+server DOES now hold that it didn't before: a `memberships` table (Stripe customer/subscription ids and
+status, no payment details) and the private half of the licence-signing keypair, needed to mint membership
+tokens. That keypair is the one genuinely new piece of sensitive infrastructure this introduces — see
+`docs/MEMBERSHIP.md` §5 for how it's generated and where it's allowed to live (nowhere in this repo).
 
 ## 3. Bring-your-own-account integrations (build the link, not the plumbing)
 

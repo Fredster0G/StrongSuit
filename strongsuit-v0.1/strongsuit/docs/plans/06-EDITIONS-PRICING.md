@@ -84,6 +84,13 @@ Everything in Independent, plus: **multi-seat with roles** (owner/manager/traine
 
 ## 4. Pricing
 
+> ⚠️ **Superseded S15 (2026-08-14) — kept as historical record, not current pricing.** Every dollar figure
+> in this section (§4.1–4.7) describes the one-time-purchase model this app shipped with through S14. The
+> current model is Coachwright Membership, $29/mo, with a free tier up to 3 clients — see
+> `docs/MEMBERSHIP.md` and `PRODUCT_OVERVIEW.md` §8 for the numbers actually in effect. Left intact below
+> because the competitive-landscape research in §4.1 and the reasoning in §4.5 are still real and still
+> worth having; only the concluding price points changed.
+
 ### 4.1 The competitive reality
 
 What a trainer pays elsewhere, per year:
@@ -122,9 +129,18 @@ What a trainer pays elsewhere, per year:
 - High enough to signal professional tooling; low enough to be an impulse purchase for a working trainer.
 - Leaves room for the launch price to feel like a genuine deal rather than a permanent fake discount.
 
-### 4.5 Sustainability — DECIDED: buy once, updates forever
+### 4.5 Sustainability — DECIDED: buy once, updates forever ⚠️ SUPERSEDED S15
 
-**Decision (Caleb, 2026-07-27): no paid version upgrades. Ever.** One purchase, every future version included — v3, v4, all of it.
+> **Superseded (Caleb, 2026-08-14):** the paid coach tier moved from a one-time purchase to Coachwright
+> Membership, $29/mo, alongside a new free tier (up to 3 clients, uncapped otherwise). This section is kept
+> below **verbatim, not deleted** — it's the real reasoning behind the original decision, and that
+> reasoning (the funding-source table, the honest risk framing) is worth reading before touching pricing
+> again, even though the concluding decision itself no longer holds. See `docs/MEMBERSHIP.md` for the
+> current model, the free-tier-limit rationale, and what a "membership" costs the architecture that a
+> one-time licence didn't (periodic reverification instead of pure offline-forever). Any licence already
+> issued under the model below is untouched — it still never expires, exactly as decided at the time.
+
+**Decision (Caleb, 2026-07-27): no paid version upgrades. Ever.** One purchase, every future version included — v3, v4, all of it. *(Historical — see the superseding note above.)*
 
 That's the strongest possible version of the brand promise, and it's a genuine differentiator. It also removes the single biggest recurring revenue line, so the rest of the model has to carry it. Here's the honest accounting.
 

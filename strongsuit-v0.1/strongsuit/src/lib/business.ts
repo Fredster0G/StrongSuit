@@ -41,12 +41,18 @@ export function gymCutForMonth(clients: Client[], payments: Payment[], month: st
   return Math.round(clients.reduce((a, c) => a + gymCutForClient(c, payments, month), 0) * 100) / 100
 }
 
-/** Commission owed to one staff member: % of their assigned clients' income this month. */
+/** Commission owed to one staff member: % of income attributed to them this
+ *  month. Prefers each payment's OWN staffId (Studio, v1.6) — who actually
+ *  collected it — and falls back to the client's CURRENT staffId only for
+ *  older, unattributed rows. Without this fallback, a client reassigned to
+ *  a different coach would retroactively move every past month's commission
+ *  to the new coach, which is wrong: the original coach did that work. */
 export function staffCommissionForMonth(staff: Staff, clients: Client[], payments: Payment[], month: string): number {
   if (!staff.commissionPercent || staff.commissionPercent <= 0) return 0
-  const clientIds = new Set(clients.filter(c => c.staffId === staff.id).map(c => c.id))
+  const clientStaffId = new Map(clients.map(c => [c.id, c.staffId]))
   const income = payments
-    .filter(p => clientIds.has(p.clientId) && p.date.startsWith(month))
+    .filter(p => p.date.startsWith(month))
+    .filter(p => (p.staffId ?? clientStaffId.get(p.clientId)) === staff.id)
     .reduce((a, p) => a + (p.type === 'refund' ? -p.amount : p.amount), 0)
   return Math.max(0, Math.round(income * (staff.commissionPercent / 100) * 100) / 100)
 }

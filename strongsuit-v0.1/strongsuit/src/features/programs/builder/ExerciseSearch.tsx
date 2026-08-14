@@ -59,13 +59,13 @@ export default function ExerciseSearch({ open, onClose, onSelect }: ExerciseSear
   return (
     <Dialog open={open} onClose={onClose} title="Add Exercise" width={480}>
       <div className="relative border-b border-line">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+        <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-faint" />
         <input
           autoFocus
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent py-3 pl-9 pr-3 text-sm text-ink outline-none placeholder:text-muted"
+          className="w-full bg-transparent py-3 ps-9 pe-3 text-sm text-ink outline-none placeholder:text-muted"
           placeholder="Search 350+ exercises (e.g. 'rdl')..."
         />
       </div>
@@ -83,7 +83,7 @@ export default function ExerciseSearch({ open, onClose, onSelect }: ExerciseSear
                 onClick={() => onSelect(ex)}
                 onMouseEnter={() => setSelectedIndex(idx)}
                 className={`flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                  idx === selectedIndex ? 'bg-verde-100 text-verde-800' : 'hover:bg-surface-elevated text-ink'
+                  idx === selectedIndex ? 'bg-verde-100 text-verde-700' : 'hover:bg-surface2 text-ink'
                 }`}
               >
                 <div className="flex flex-col">

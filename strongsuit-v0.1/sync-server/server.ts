@@ -5,6 +5,8 @@ import * as dotenv from 'dotenv'
 import { randomBytes } from 'crypto'
 import { rateLimit } from 'express-rate-limit'
 import webpush from 'web-push'
+import Stripe from 'stripe'
+import { loadSigningKey, signMembershipToken, type MembershipClaims } from './membershipTokens'
 
 dotenv.config()
 
@@ -21,6 +23,88 @@ const limiter = rateLimit({
 
 app.use(cors())
 app.use(limiter)
+
+// ---- Stripe (membership billing, S15) ----
+// `null` when unconfigured — a self-hoster who isn't selling memberships
+// doesn't need a Stripe account, and every route below refuses cleanly
+// rather than crashing the process on a missing key. See docs/MEMBERSHIP.md
+// for the full setup checklist (create the product/price, set the env vars,
+// point a webhook at /membership/webhook).
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
+
+/** A token stays valid this many days after being minted — real headroom
+ *  past a 30-day billing cycle so a coach without internet for a stretch
+ *  isn't locked out mid-cycle (see lib/membership.ts's header on the
+ *  workstation side for the offline-grace reasoning). */
+const MEMBERSHIP_TOKEN_LIFETIME_DAYS = Number(process.env.MEMBERSHIP_TOKEN_LIFETIME_DAYS || 35)
+
+/** Stripe subscription statuses that mean "the coach should have access
+ *  right now". `past_due` counts — Stripe is still retrying the card and
+ *  cutting access on the first failed charge is exactly the kind of
+ *  coercive billing experience worth avoiding; `unpaid`/`canceled` do not. */
+function isActiveSubscriptionStatus(status: string): boolean {
+  return status === 'active' || status === 'trialing' || status === 'past_due'
+}
+
+// Webhook route is registered BEFORE the global express.json() below,
+// with its own express.raw() middleware — Stripe's signature check
+// (`stripe.webhooks.constructEvent`) needs the exact raw request bytes,
+// which a JSON-parsing body reader would already have consumed and
+// reserialized (losing byte-for-byte fidelity) by the time a route handler
+// further down the file ran.
+app.post('/membership/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(503).json({ error: 'Membership billing is not configured on this instance' })
+  }
+  const signature = req.headers['stripe-signature']
+  let event: Stripe.Event
+  try {
+    event = stripe.webhooks.constructEvent(req.body, signature as string, process.env.STRIPE_WEBHOOK_SECRET)
+  } catch (err: any) {
+    console.error('Webhook signature verification failed:', err.message)
+    return res.status(400).json({ error: `Webhook signature verification failed` })
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        const coachId = session.client_reference_id
+        if (!coachId || !session.subscription || !session.customer) break
+        const subscription = await stripe.subscriptions.retrieve(session.subscription as string)
+        upsertMembership({
+          coachId,
+          stripeCustomerId: session.customer as string,
+          stripeSubscriptionId: subscription.id,
+          status: subscription.status,
+          currentPeriodEnd: subscription.items.data[0]?.current_period_end,
+          name: session.customer_details?.name || 'Coachwright member',
+        })
+        break
+      }
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription
+        const row = db.prepare('SELECT coach_id, name FROM memberships WHERE stripe_subscription_id = ?').get(subscription.id) as { coach_id: string; name: string } | undefined
+        if (!row) break
+        upsertMembership({
+          coachId: row.coach_id,
+          stripeCustomerId: subscription.customer as string,
+          stripeSubscriptionId: subscription.id,
+          status: event.type === 'customer.subscription.deleted' ? 'canceled' : subscription.status,
+          currentPeriodEnd: subscription.items.data[0]?.current_period_end,
+          name: row.name,
+        })
+        break
+      }
+    }
+    res.json({ received: true })
+  } catch (err: any) {
+    console.error('Webhook handling failed:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.use(express.json({ limit: '5mb' })) // Reduced from 50mb to prevent memory exhaustion
 
 // Initialize SQLite database
@@ -120,7 +204,46 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_signals_to ON signals (coach_id, to_device, id);
+
+  -- $29/mo membership subscriptions (S15). One row per coach who has ever
+  -- checked out — status tracks Stripe's own subscription status verbatim
+  -- rather than a boolean, so "active", "past_due" (grace period, see
+  -- isActiveSubscriptionStatus below) and "canceled" are all distinguishable
+  -- without a second lookup. The server never mints a token past what
+  -- Stripe currently reports here — this table, not the app, is the source
+  -- of truth for "is this subscription real right now".
+  CREATE TABLE IF NOT EXISTS memberships (
+    coach_id TEXT PRIMARY KEY,
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT UNIQUE,
+    status TEXT,
+    current_period_end DATETIME,
+    name TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `)
+
+// ---- Membership persistence ----
+function upsertMembership(m: {
+  coachId: string; stripeCustomerId: string; stripeSubscriptionId: string
+  status: string; currentPeriodEnd: number | undefined; name: string
+}) {
+  db.prepare(`
+    INSERT INTO memberships (coach_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, name, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(coach_id) DO UPDATE SET
+      stripe_customer_id = excluded.stripe_customer_id,
+      stripe_subscription_id = excluded.stripe_subscription_id,
+      status = excluded.status,
+      current_period_end = excluded.current_period_end,
+      name = excluded.name,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    m.coachId, m.stripeCustomerId, m.stripeSubscriptionId, m.status,
+    m.currentPeriodEnd ? new Date(m.currentPeriodEnd * 1000).toISOString() : null,
+    m.name,
+  )
+}
 
 // ---- Web Push (VAPID) setup ----
 // Keys come from env when the operator sets them; otherwise generated once
@@ -594,6 +717,104 @@ pushRouter.post('/unsubscribe', (req, res) => {
 })
 
 app.use('/push', pushRouter)
+
+// ---- Membership billing (S15) — self-serve, unlike the manual $15/mo relay
+// provisioning above. No admin key: any coach can start checkout for their
+// own device id, same trust model as everything else in this file (a coach
+// can only ever act on their own coachId, enforced by assertOwnsCoach where
+// a per-coach key is in play; checkout/status here aren't behind a key at
+// all since there's nothing sensitive to protect before a subscription
+// exists — Stripe's own session owns the payment step). ----
+const membershipRouter = express.Router()
+
+membershipRouter.post('/checkout', async (req, res) => {
+  if (!stripe || !process.env.STRIPE_PRICE_ID) {
+    return res.status(503).json({ error: 'Membership billing is not configured on this instance' })
+  }
+  const { coachId, name, email } = req.body
+  if (!coachId) return res.status(400).json({ error: 'Missing coachId' })
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      client_reference_id: coachId,
+      customer_email: typeof email === 'string' && email ? email : undefined,
+      success_url: process.env.STRIPE_SUCCESS_URL || 'https://coachwright.app/membership/success',
+      cancel_url: process.env.STRIPE_CANCEL_URL || 'https://coachwright.app/membership/cancelled',
+      // Carried through to the customer record so a support lookup by name
+      // is possible without ever storing it separately ourselves.
+      metadata: { coachId, name: typeof name === 'string' ? name : '' },
+    })
+    res.json({ success: true, url: session.url })
+  } catch (err: any) {
+    console.error('Checkout session creation failed:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// The app polls this (on launch, and roughly daily) to refresh its signed
+// token well before expiry. Always re-derives the token from this table's
+// current `status`, never from whatever the app last had — a coach whose
+// card failed is a `status` change here, and the very next poll reflects it,
+// same latency as the webhook that wrote it.
+membershipRouter.get('/status', async (req, res) => {
+  const { coachId } = req.query as Record<string, string>
+  if (!coachId) return res.status(400).json({ error: 'Missing coachId' })
+
+  const row = db.prepare('SELECT * FROM memberships WHERE coach_id = ?').get(coachId) as
+    | { coach_id: string; status: string; name: string; stripe_subscription_id: string }
+    | undefined
+
+  if (!row || !isActiveSubscriptionStatus(row.status)) {
+    return res.json({ success: true, active: false, reason: row ? `Subscription is ${row.status}` : 'No membership on file' })
+  }
+
+  const signingKey = loadSigningKey()
+  if (!signingKey) {
+    // Configuration error, not a billing one — the subscription IS active,
+    // we just can't attest to it right now. Distinguished in the response so
+    // the app can retry later rather than treating it as "not a member".
+    return res.status(503).json({ error: 'Membership signing key is not configured on this instance' })
+  }
+
+  const issuedAt = new Date()
+  const expiresAt = new Date(issuedAt.getTime() + MEMBERSHIP_TOKEN_LIFETIME_DAYS * 86_400_000)
+  const claims: MembershipClaims = {
+    name: row.name,
+    subscriptionId: row.stripe_subscription_id,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  }
+  const token = await signMembershipToken(claims, signingKey)
+  res.json({ success: true, active: true, token, expiresAt: claims.expiresAt })
+})
+
+// Hands the coach off to Stripe's own hosted billing portal for
+// cancel/card-update flows — per MANAGED_HOSTING.md's existing doctrine
+// ("do not build a customer portal, Stripe's own portal handles card/cancel
+// flows"), applied here to the automated tier too.
+membershipRouter.post('/portal', async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Membership billing is not configured on this instance' })
+  const { coachId } = req.body
+  if (!coachId) return res.status(400).json({ error: 'Missing coachId' })
+
+  const row = db.prepare('SELECT stripe_customer_id FROM memberships WHERE coach_id = ?').get(coachId) as { stripe_customer_id: string } | undefined
+  if (!row) return res.status(404).json({ error: 'No membership on file for this coach' })
+
+  try {
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: row.stripe_customer_id,
+      return_url: process.env.STRIPE_SUCCESS_URL || 'https://coachwright.app/membership/success',
+    })
+    res.json({ success: true, url: portalSession.url })
+  } catch (err: any) {
+    console.error('Billing portal session creation failed:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.use('/membership', membershipRouter)
 
 // Unauthenticated liveness probe for the operator's monitoring — returns no
 // data beyond "up" (see docs/MANAGED_HOSTING.md).

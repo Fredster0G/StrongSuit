@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Companion</title>
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <!-- No external scripts, fonts, or styles: this file has to open and work
+       with no connection at all (it is routinely opened from a Downloads
+       folder on a gym phone). A CDN <script> also meant the CDN could see
+       every time a client opened their own workout. -->
   <style>
     :root {
       --brand: /*__SS_BRAND_COLOR__*/;
@@ -69,15 +72,34 @@
   <div class="container">
     <!-- View: Select Day -->
     <div id="view-program">
+      <div id="coach-messages" class="card" style="display:none; background: var(--brand); color: white; border-color: var(--brand);">
+        <h3 class="card-title" style="margin-bottom: 8px;">From your coach</h3>
+        <div id="messages-list" style="font-size: 14px; line-height: 1.4;"></div>
+      </div>
+
       <div class="card">
         <h3 class="card-title" id="program-name">Program</h3>
         <p style="color: var(--muted); font-size: 14px; margin-top: 0;" id="program-desc"></p>
         <div class="day-selector" id="day-list"></div>
       </div>
       
+      <!-- Send-work-back options.
+           There is deliberately no "WiFi Sync" button here. One used to exist
+           and could never have worked: it POSTed plaintext JSON keyed by the
+           Client id, while the coach app's LAN endpoint requires a sealed
+           CWSYNC1 packet from an already-paired Device id — it failed at both
+           layers, and showed the client a misleading "couldn't reach the
+           server" error when the real problem was that this file has no
+           pairing at all. Live sync needs a keypair, and a private key baked
+           into a file that gets emailed around is not something to ship; the
+           installable Companion app generates its own on the device instead.
+           The file export below is the real, working path for this format. -->
       <div class="footer-actions">
-        <button class="btn btn-primary" onclick="startWifiSync()">WiFi Sync</button>
-        <button class="btn" style="margin-top: 8px;" onclick="exportData()">Export File (Manual)</button>
+        <button class="btn btn-primary" onclick="exportData()">Send my work to my coach</button>
+        <p style="color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.5;">
+          Saves a file you can email or message to your coach — they import it in one click.
+          Everything you log stays on this device until you send it.
+        </p>
       </div>
     </div>
 
@@ -99,18 +121,6 @@
 
     <div class="footer" id="footer-branding">Built with Coachwright</div>
 
-    <!-- View: WiFi Sync -->
-    <div id="view-sync" style="display: none; position: fixed; inset: 0; background: var(--bg); z-index: 100; padding: 16px; flex-direction: column;">
-      <h3 style="margin-top: 32px; text-align: center;">Scan Coach's QR Code</h3>
-      <p style="text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 24px;">Make sure you are on the same WiFi network.</p>
-      <div id="qr-reader" style="width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 24px;"></div>
-      <div style="text-align: center; margin-bottom: 24px;">
-        <p style="font-size: 12px; color: var(--faint);">Or enter IP address manually:</p>
-        <input type="text" id="manual-ip" placeholder="http://192.168.1.5:4000" style="padding: 10px; width: 100%; max-width: 300px; background: var(--surface); border: 1px solid var(--border); color: white; border-radius: 4px; margin-bottom: 8px;">
-        <button class="btn btn-primary" style="max-width: 300px;" onclick="doManualSync()">Connect</button>
-      </div>
-      <button class="btn" style="margin-top: auto;" onclick="closeWifiSync()">Cancel</button>
-    </div>
   </div>
 
   <script>
@@ -137,6 +147,33 @@
       if (payload.client) {
         document.getElementById('client-greeting').textContent = `Hello, ${payload.client.name}`;
       }
+      
+      if (payload.messages && payload.messages.length > 0) {
+        const msgsCard = document.getElementById('coach-messages');
+        const msgsList = document.getElementById('messages-list');
+        const outbound = payload.messages.filter(m => m.direction === 'outbound');
+        
+        if (outbound.length > 0) {
+          msgsCard.style.display = 'block';
+          outbound.slice(0, 5).forEach(m => {
+            const el = document.createElement('div');
+            el.style.marginBottom = '12px';
+            el.style.paddingBottom = '12px';
+            el.style.borderBottom = '1px solid rgba(255,255,255,0.2)';
+            
+            const dateStr = new Date(m.date).toLocaleDateString();
+            el.innerHTML = `<div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">${dateStr}</div>
+                            <div style="white-space: pre-wrap;">${m.content}</div>`;
+            msgsList.appendChild(el);
+          });
+          if (msgsList.lastChild) {
+            msgsList.lastChild.style.borderBottom = 'none';
+            msgsList.lastChild.style.marginBottom = '0';
+            msgsList.lastChild.style.paddingBottom = '0';
+          }
+        }
+      }
+
       if (payload.program) {
         document.getElementById('program-name').textContent = payload.program.name;
         document.getElementById('program-desc').textContent = payload.program.description;
@@ -319,66 +356,11 @@
       URL.revokeObjectURL(url);
     }
 
-    let html5QrcodeScanner = null;
-
-    function startWifiSync() {
-      document.getElementById('view-sync').style.display = 'flex';
-      if (typeof Html5QrcodeScanner !== 'undefined') {
-        html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-      }
-    }
-
-    function closeWifiSync() {
-      document.getElementById('view-sync').style.display = 'none';
-      if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear();
-      }
-    }
-
-    function onScanSuccess(decodedText, decodedResult) {
-      if (decodedText.startsWith('http://')) {
-        closeWifiSync();
-        performSync(decodedText);
-      }
-    }
-
-    function onScanFailure(error) {
-      // ignore
-    }
-
-    function doManualSync() {
-      const ip = document.getElementById('manual-ip').value.trim();
-      if (!ip) {
-        alert("Please enter an IP address.");
-        return;
-      }
-      closeWifiSync();
-      performSync(ip);
-    }
-
-    async function performSync(baseUrl) {
-      if (savedData.logs.length === 0) {
-        alert("No sessions logged to sync, but we will check for updates.");
-      }
-      try {
-        const syncPayload = { deviceId: payload.client?.id || 'demo', text: JSON.stringify(savedData) };
-        const response = await fetch(`${baseUrl}/sync/push`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(syncPayload)
-        });
-        const result = await response.json();
-        if (result.success) {
-          alert("Sync complete! Data transferred to Coachwright.");
-          // Ideally here we could merge back updated programs, but for now just pushing is enough.
-        } else {
-          alert("Sync failed: " + result.message);
-        }
-      } catch (err) {
-        alert("Sync error: Could not reach the server. Make sure you are on the same WiFi and the address is correct.");
-      }
-    }
+    // The QR-scan / manual-IP / performSync block that used to live here was
+    // removed along with the WiFi Sync button — see the comment on the footer
+    // actions above for why it could never have worked. Removing it also let
+    // the html5-qrcode CDN <script> go, which had no business being in a file
+    // whose entire promise is that it works offline.
 
     // Run
     init();

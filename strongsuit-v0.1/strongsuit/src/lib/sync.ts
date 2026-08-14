@@ -91,6 +91,13 @@ export interface PairingCode {
   name: string
   role: 'coach' | 'client'
   pub: JsonWebKey
+  /** Optional transport hints (added S13, backward compatible — old apps
+   *  simply ignore unknown fields). A coach's code can carry their relay
+   *  address/key so a scanned QR pairs AND configures sync in one step.
+   *  These hints are conveniences, not identity — the crypto above is the
+   *  only part that authenticates anyone. */
+  relay?: string
+  relayKey?: string
 }
 
 export function encodePairingCode(c: PairingCode): string {

@@ -16,7 +16,7 @@ function BlockCard({ block, exNames }: { block: Block; exNames: Map<string, stri
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
       {block.label && (
-        <div className="mb-4 text-xl font-semibold uppercase tracking-wide text-ember-400">
+        <div className="mb-4 text-xl font-semibold uppercase tracking-wide text-ember-500">
           {block.label}{block.intervalSpec ? ` — ${block.intervalSpec}` : ''}
         </div>
       )}
@@ -80,7 +80,7 @@ export default function TvWorkoutPage() {
           <div>
             <p className="text-lg text-white/50">{fullName(client)}</p>
             <h1 className="font-display text-5xl font-bold tracking-tight">{program.name}</h1>
-            {current && <p className="mt-2 text-2xl text-ember-400">{current.week} · {current.day.name}</p>}
+            {current && <p className="mt-2 text-2xl text-ember-500">{current.week} · {current.day.name}</p>}
           </div>
           <button onClick={() => navigate(-1)} className="rounded-full bg-white/10 p-3 hover:bg-white/20" aria-label="Close">
             <X size={28} />

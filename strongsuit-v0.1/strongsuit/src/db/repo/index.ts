@@ -1,9 +1,10 @@
 import { db } from '../schema'
 import { makeRepo } from './base'
-import { newId, nowIso, stamp } from '@/lib/core'
+import { newId, nowIso, singleFlight, stamp } from '@/lib/core'
 import type {
   Trainer, Client, ClientNote, Program, SessionLog, Metric, Waiver, Device, CoachMessage,
   Staff, Location, Lead, ProgressPhoto, Habit, HabitEntry, Challenge, Invoice, Coupon, AutomationRule,
+  ModelBlob, ExerciseEmbedding, Exercise, ExerciseOverride, FoodItem, FoodEntry,
 } from '../types'
 
 // ---------- trainer (singleton) ----------
@@ -13,7 +14,12 @@ export const trainerRepo = {
   async get(): Promise<Trainer | undefined> {
     return db.trainer.get(TRAINER_ID)
   },
-  async getOrCreate(): Promise<Trainer> {
+  /** Single-flighted check-then-insert of the singleton row. Two concurrent
+   *  callers both used to read "missing" and both `add()`, and the loser's
+   *  ConstraintError rejected AppRoot's un-caught boot chain — the first-boot
+   *  hang in debt #6/#54a. The catch handles the cross-tab race that
+   *  single-flight can't, since IndexedDB is shared between tabs. */
+  getOrCreate: singleFlight(async (): Promise<Trainer> => {
     const existing = await db.trainer.get(TRAINER_ID)
     if (existing) return existing
     const t = nowIso()
@@ -22,10 +28,25 @@ export const trainerRepo = {
       businessName: '', trainerName: '', units: 'lb', weekStartsOn: 1,
       defaultRestSeconds: 90, currency: 'USD', onboardingComplete: false,
       companionCredit: true, density: 'compact', theme: 'system',
+      // S15: new installs start on the free tier (PERSONAL — up to
+      // FREE_TIER_CLIENT_LIMIT clients, see lib/membership.ts) rather than
+      // the old unconditional 'independent' default. A coach who already had
+      // the app before this shipped keeps whatever `edition` was already
+      // stored on their trainer row — this only governs a BRAND NEW row, so
+      // nobody already using the app gets downgraded by this change.
+      edition: 'personal',
     }
-    await db.trainer.add(fresh)
-    return fresh
-  },
+    try {
+      await db.trainer.add(fresh)
+      return fresh
+    } catch (err) {
+      // Someone else inserted the singleton between our read and our write —
+      // adopt their row instead of failing boot. Anything else is a real error.
+      const raced = await db.trainer.get(TRAINER_ID)
+      if (raced) return raced
+      throw err
+    }
+  }),
   async patch(patch: Partial<Trainer>) {
     await db.trainer.update(TRAINER_ID, { ...patch, updatedAt: nowIso() })
     return db.trainer.get(TRAINER_ID)
@@ -62,7 +83,63 @@ export const clientsRepo = {
 }
 
 // ---------- exercises ----------
-export const exercisesRepo = makeRepo(db.exercises)
+function mergeOverride(ex: Exercise, o: ExerciseOverride): Exercise {
+  return {
+    ...ex,
+    name: o.name ?? ex.name,
+    cues: o.cues ?? ex.cues,
+    videoLinks: o.videoLinks ?? ex.videoLinks,
+    equipment: o.equipment ?? ex.equipment,
+    hidden: o.hidden ?? ex.hidden,
+  }
+}
+
+export const exercisesRepo = {
+  ...makeRepo<Exercise>(db.exercises),
+  async get(id: string): Promise<Exercise | undefined> {
+    const ex = await db.exercises.get(id)
+    if (!ex) return undefined
+    if (ex.isCustom) return ex
+    const override = await db.exerciseOverrides.get(id)
+    return override ? mergeOverride(ex, override) : ex
+  },
+  async all(): Promise<Exercise[]> {
+    const [exs, overrides] = await Promise.all([
+      db.exercises.toArray(),
+      db.exerciseOverrides.toArray()
+    ])
+    const byId = new Map(overrides.map(o => [o.id, o]))
+    return exs.map(ex => {
+      if (ex.isCustom) return ex
+      const o = byId.get(ex.id)
+      return o ? mergeOverride(ex, o) : ex
+    }).filter(ex => !ex.hidden)
+  },
+  async update(id: string, patch: Partial<Exercise>) {
+    const ex = await db.exercises.get(id)
+    if (!ex) return undefined
+    if (ex.isCustom) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await db.exercises.update(id, { ...patch, updatedAt: nowIso() } as any)
+    } else {
+      const existing = await db.exerciseOverrides.get(id)
+      const t = nowIso()
+      const o: ExerciseOverride = {
+        id,
+        createdAt: existing?.createdAt ?? t,
+        updatedAt: t,
+        exerciseId: id,
+        name: patch.name !== undefined && patch.name !== ex.name ? patch.name : existing?.name,
+        cues: patch.cues !== undefined ? patch.cues : existing?.cues,
+        videoLinks: patch.videoLinks !== undefined ? patch.videoLinks : existing?.videoLinks,
+        equipment: patch.equipment !== undefined ? patch.equipment : existing?.equipment,
+        hidden: patch.hidden !== undefined ? patch.hidden : existing?.hidden,
+      }
+      await db.exerciseOverrides.put(o)
+    }
+    return this.get(id)
+  }
+}
 
 // ---------- client notes ----------
 export const clientNotesRepo = {
@@ -111,6 +188,21 @@ export const programsRepo = {
     await db.programs.add(clone)
     return clone
   },
+}
+
+// ---------- food ----------
+export const foodItemsRepo = {
+  ...makeRepo<FoodItem>(db.foodItems),
+  async byBarcode(barcode: string) {
+    return db.foodItems.where('barcode').equals(barcode).first()
+  }
+}
+
+export const foodEntriesRepo = {
+  ...makeRepo<FoodEntry>(db.foodEntries),
+  async forClientDate(clientId: string, date: string) {
+    return db.foodEntries.where('[clientId+date]').equals([clientId, date]).toArray()
+  }
 }
 
 // ---------- logs ----------
@@ -256,5 +348,56 @@ export const automationRulesRepo = {
   ...makeRepo<AutomationRule>(db.automationRules),
   async active() {
     return db.automationRules.filter(r => r.active).toArray()
+  },
+}
+
+// ---------- local-AI model weight cache (lib/modelFetch.ts) ----------
+// Hand-written rather than makeRepo: ModelBlob deliberately has no
+// createdAt/updatedAt (see its own doc comment in db/types.ts) — a download
+// cache isn't user data with an edit history.
+export const modelBlobsRepo = {
+  async get(id: string): Promise<ModelBlob | undefined> {
+    return db.modelBlobs.get(id)
+  },
+  async has(id: string): Promise<boolean> {
+    return (await db.modelBlobs.get(id)) !== undefined
+  },
+  async allIds(): Promise<string[]> {
+    return db.modelBlobs.toCollection().primaryKeys()
+  },
+  async put(id: string, blob: Blob): Promise<void> {
+    const row: ModelBlob = { id, blob, bytes: blob.size, cachedAt: nowIso() }
+    await db.modelBlobs.put(row)
+  },
+  async remove(id: string): Promise<void> {
+    await db.modelBlobs.delete(id)
+  },
+  /** Total bytes currently cached, across every installed model — shown in
+   *  Settings so "remove downloads" has a real number attached to it. */
+  async totalBytes(): Promise<number> {
+    const rows = await db.modelBlobs.toArray()
+    return rows.reduce((sum, r) => sum + r.bytes, 0)
+  },
+}
+
+// ---------- exercise semantic-search cache (lib/embeddings.ts) ----------
+export const exerciseEmbeddingsRepo = {
+  async get(exerciseId: string): Promise<ExerciseEmbedding | undefined> {
+    return db.exerciseEmbeddings.get(exerciseId)
+  },
+  async put(row: ExerciseEmbedding): Promise<void> {
+    await db.exerciseEmbeddings.put(row)
+  },
+  /** Loaded once per search-index build rather than per-exercise — 350
+   *  individual IndexedDB reads to score one query would be needless
+   *  latency when one bulk read gives the same data. */
+  async all(): Promise<ExerciseEmbedding[]> {
+    return db.exerciseEmbeddings.toArray()
+  },
+  async remove(exerciseId: string): Promise<void> {
+    await db.exerciseEmbeddings.delete(exerciseId)
+  },
+  async clear(): Promise<void> {
+    await db.exerciseEmbeddings.clear()
   },
 }

@@ -38,9 +38,9 @@ export function Stat({ label, value, unit, tone = 'ink' }: { label: string; valu
   return (
     <div>
       <p className="text-2xs font-medium uppercase tracking-wide text-faint">{label}</p>
-      <p className={`font-mono tnum text-xl font-semibold ${toneCls}`}>
+      <p className={`font-mono tabular-nums text-xl font-semibold ${toneCls}`}>
         {value}
-        {unit && <span className="ml-1 text-xs font-normal text-muted">{unit}</span>}
+        {unit && <span className="ms-1 text-xs font-normal text-muted">{unit}</span>}
       </p>
     </div>
   )
@@ -94,5 +94,14 @@ export function InjuryRibbon({ text }: { text: string }) {
       <span className="mt-px font-semibold uppercase tracking-wide">Injury note</span>
       <span className="text-ink">{text}</span>
     </div>
+  )
+}
+
+export function LogoSpinner({ size = 24, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} className={`animate-cw-spin ${className}`}>
+      <circle cx="50" cy="50" r="34" fill="none" className="stroke-line" strokeWidth="12" />
+      <path d="M 50 16 A 34 34 0 0 1 84 50" fill="none" className="stroke-ink" strokeWidth="12" strokeLinecap="butt" />
+    </svg>
   )
 }

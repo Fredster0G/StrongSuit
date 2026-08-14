@@ -65,7 +65,7 @@ export function RestTimer({ seconds, onDone, onDismiss, sound = true }: {
               strokeWidth="3" strokeDasharray={`${(pct / 100) * 100.5} 100.5`} strokeLinecap="round"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center font-mono tnum text-sm font-semibold text-ink">
+          <span className="absolute inset-0 flex items-center justify-center font-mono tabular-nums text-sm font-semibold text-ink">
             {mm}:{String(ss).padStart(2, '0')}
           </span>
         </div>

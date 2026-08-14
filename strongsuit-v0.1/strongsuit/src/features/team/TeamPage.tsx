@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Users, MapPin, Plus, Trash2 } from 'lucide-react'
+import { Users, MapPin, Plus, Trash2, Lock, UserCircle2 } from 'lucide-react'
 import {
   Card, SectionHeader, Button, EmptyState, Dialog, Field, Input, Select, Tag, Stat, toast,
 } from '@/design'
-import { staffRepo, locationsRepo, clientsRepo, paymentsRepo } from '@/db/repo'
+import { staffRepo, locationsRepo, clientsRepo, paymentsRepo, trainerRepo } from '@/db/repo'
 import type { StaffRole, Location } from '@/db/types'
 import { staffCommissionForMonth } from '@/lib/business'
+import { editionCapabilities, EDITION_NAMES } from '@/lib/edition'
+import { getActiveStaffId, setActiveStaffId } from '@/lib/activeStaff'
 import { format } from 'date-fns'
 
 const ROLE_LABEL: Record<StaffRole, string> = { owner: 'Owner', coach: 'Coach', 'front-desk': 'Front desk' }
@@ -84,15 +87,57 @@ function AddLocationDialog({ open, onClose }: { open: boolean; onClose: () => vo
 export default function TeamPage() {
   const [staffOpen, setStaffOpen] = useState(false)
   const [locOpen, setLocOpen] = useState(false)
+  const trainer = useLiveQuery(() => trainerRepo.get())
   const staff = useLiveQuery(() => staffRepo.all(), [], [])
   const locations = useLiveQuery(() => locationsRepo.all(), [], [])
   const clients = useLiveQuery(() => clientsRepo.all(), [], [])
   const payments = useLiveQuery(() => paymentsRepo.all(), [], [])
   const thisMonth = format(new Date(), 'yyyy-MM')
+  const cap = editionCapabilities(trainer?.edition)
+  const [activeId, setActiveIdState] = useState<string | null>(null)
+  useEffect(() => { setActiveIdState(getActiveStaffId(staff)) }, [staff])
+
+  function chooseActive(id: string) {
+    setActiveStaffId(id || null)
+    setActiveIdState(id || null)
+  }
+
+  if (trainer === undefined) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <SectionHeader title="Team & locations" />
+        <Card className="animate-pulse text-sm text-faint">Loading…</Card>
+      </div>
+    )
+  }
+
+  if (!cap.multiSeat) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <SectionHeader title="Team & locations" />
+        <Card className="flex flex-col items-center gap-3 py-10 text-center">
+          <Lock size={28} className="text-faint" strokeWidth={1.5} />
+          <p className="max-w-md text-sm text-muted">{cap.upgradeReason}</p>
+          <p className="text-2xs text-faint">Currently on {EDITION_NAMES[cap.edition]}.</p>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <SectionHeader title="Team & locations" action={<div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => setLocOpen(true)}><MapPin size={14} /> Add location</Button><Button size="sm" variant="primary" onClick={() => setStaffOpen(true)}><Plus size={14} /> Add staff</Button></div>} />
+
+      {staff.length > 0 && (
+        <Card className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted"><UserCircle2 size={15} /> Working as</div>
+          <Select className="!h-8 w-56" value={activeId ?? ''} onChange={e => chooseActive(e.target.value)}>
+            <option value="">— not set (no attribution) —</option>
+            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+          <p className="text-2xs text-faint">New sessions, payments, programs, and invoices from this device are stamped with whoever's picked here.</p>
+        </Card>
+      )}
 
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted">Staff — {format(new Date(), 'MMMM')} commissions</h3>
@@ -146,13 +191,14 @@ export default function TeamPage() {
             {locations.map(l => {
               const count = clients.filter(c => c.locationId === l.id).length
               return (
-                <Card key={l.id} pad={false} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <div className="text-sm font-medium text-ink">{l.name}</div>
-                    <div className="text-2xs text-faint">{l.address || 'No address on file'} · {count} client{count === 1 ? '' : 's'}</div>
-                  </div>
-                  <Button size="sm" variant="ghost" className="text-ember-600" onClick={async () => { await locationsRepo.remove(l.id); toast(`${l.name} removed.`) }}><Trash2 size={14} /></Button>
-                </Card>
+                <Link key={l.id} to={`/locations/${l.id}`} className="block">
+                  <Card pad={false} className="flex items-center justify-between px-4 py-3 transition-colors hover:border-verde-600/40">
+                    <div>
+                      <div className="text-sm font-medium text-ink">{l.name}</div>
+                      <div className="text-2xs text-faint">{l.address || 'No address on file'} · {count} client{count === 1 ? '' : 's'}</div>
+                    </div>
+                  </Card>
+                </Link>
               )
             })}
           </div>

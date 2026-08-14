@@ -116,3 +116,13 @@ export function calculateWeeklySessions(logs: SessionLog[], weekStartsOn: 0 | 1 
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([week, count]) => ({ week, count }))
 }
+
+/** Sessions logged in the calendar week containing `todayStr` — 0 if none,
+ *  not the most recent week that happens to have any (a client who trained
+ *  two weeks ago and nothing since should read as 0 this week, not stale
+ *  data from their last active week). */
+export function currentWeekSessionCount(logs: SessionLog[], weekStartsOn: 0 | 1, todayStr: string): number {
+  const weekStart = format(startOfWeek(parseISO(todayStr), { weekStartsOn }), 'yyyy-MM-dd')
+  const count = calculateWeeklySessions(logs, weekStartsOn).find(w => w.week === weekStart)?.count
+  return count ?? 0
+}

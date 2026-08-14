@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --k-black:#000; --k-white:#fff;
+  --k-g02:#FAFAFA; --k-g05:#F2F2F2; --k-g10:#E6E6E6; --k-g20:#CCC; --k-g40:#999; --k-g60:#666; --k-g80:#333;
+  --k-disp:"Inter Tight","Helvetica Neue",Arial,sans-serif;
+  --k-text:"Inter","Helvetica Neue",Arial,sans-serif;
+  --k-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --k-sharp:cubic-bezier(0.2,0,0,1);
+}
+*{box-sizing:border-box;}
+body{margin:0;}
+@keyframes cw-spin{ to{ transform:rotate(360deg);} }
+/* Launch: the solid mark builds in with a left-to-right wipe */
+@keyframes cw-wipe{ from{ clip-path:inset(0 100% 0 0);} to{ clip-path:inset(0 0 0 0);} }
+@keyframes cw-word{ 0%{opacity:0;transform:translateX(-12px);} 100%{opacity:1;transform:translateX(0);} }
+@keyframes cw-fade{ 0%{opacity:0;} 100%{opacity:1;} }
+@keyframes cw-bar{ 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
+.cw-splash-mark{ animation:cw-wipe 0.75s var(--k-sharp) forwards; }
+.cw-splash-word{ animation:cw-word 0.5s var(--k-sharp) 0.75s both; }
+.cw-splash-sub{ animation:cw-fade 0.5s var(--k-sharp) 1.15s both; }
+a{color:inherit;} a:hover{opacity:0.55;}
+</style>
+</helmet>
+
+<div style="font-family:var(--k-text);background:var(--k-white);color:var(--k-black);letter-spacing:-0.005em;min-height:100vh;">
+
+  <!-- ============ HEADER ============ -->
+  <div style="border-bottom:1px solid var(--k-black);padding:24px 48px;display:flex;justify-content:space-between;align-items:baseline;">
+    <span style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;">Coachwright — Brand Mark</span>
+    <span style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);">№ 001 / IDENTITY</span>
+  </div>
+
+  <!-- ============ HERO LOCKUP ============ -->
+  <div style="padding:128px 48px 96px;border-bottom:1px solid var(--k-black);">
+    <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-bottom:48px;">01 — Primary Lockup</div>
+    <div style="display:flex;align-items:center;gap:40px;flex-wrap:wrap;">
+      <div style="width:132px;height:132px;background:var(--k-black);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg viewBox="0 0 100 100" style="width:80px;height:80px;">
+          <path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-family:var(--k-disp);font-weight:800;font-size:clamp(3rem,7vw,6rem);line-height:0.92;letter-spacing:-0.04em;">Coachwright</div>
+        <div style="font-family:var(--k-mono);font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-top:16px;">Coaching software you own</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ LIVE LOADING ANIMATION ============ -->
+  <div style="padding:96px 48px;border-bottom:1px solid var(--k-black);">
+    <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-bottom:12px;">02 — Motion / Loading States</div>
+    <p style="max-width:560px;color:var(--k-g80);margin-bottom:64px;">Three states, one mark. A continuous ring sweep for indeterminate loading; a wipe-build for app launch; a determinate bar for known progress. Sharp easing, no bounce, no color.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;">
+
+      <!-- (a) Indeterminate loader -->
+      <div style="border:1px solid var(--k-black);padding:48px;display:flex;flex-direction:column;align-items:center;gap:32px;">
+        <div style="width:80px;height:80px;">
+          <svg viewBox="0 0 100 100" style="width:80px;height:80px;animation:cw-spin 1s linear infinite;">
+            <circle cx="50" cy="50" r="34" fill="none" stroke="var(--k-g10)" stroke-width="12"/>
+            <path d="M 50 16 A 34 34 0 0 1 84 50" fill="none" stroke="var(--k-black)" stroke-width="12" stroke-linecap="butt"/>
+          </svg>
+        </div>
+        <span style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);">Indeterminate spinner</span>
+      </div>
+
+      <!-- (b) Boot splash: wipe-build reveal + wordmark -->
+      <div style="border:1px solid var(--k-black);padding:48px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:24px;background:var(--k-black);">
+        <div style="flex:1;display:flex;align-items:center;">
+          <svg viewBox="0 0 100 100" style="width:68px;height:68px;">
+            <path class="cw-splash-mark" d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="cw-splash-word" style="font-family:var(--k-disp);font-weight:800;font-size:26px;letter-spacing:-0.04em;color:#fff;">Coachwright</div>
+        <div class="cw-splash-sub" style="font-family:var(--k-mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g40);">Launch splash</div>
+      </div>
+
+      <!-- (c) Determinate progress -->
+      <div style="border:1px solid var(--k-black);padding:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;">
+        <div style="width:64px;height:64px;background:var(--k-black);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 100 100" style="width:42px;height:42px;">
+            <path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div style="width:100%;height:6px;background:var(--k-g10);overflow:hidden;position:relative;">
+          <div style="position:absolute;inset:0;background:var(--k-black);width:60%;animation:cw-bar 1.4s var(--k-sharp) infinite;"></div>
+        </div>
+        <span style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);">Determinate bar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VARIANTS ============ -->
+  <div style="padding:96px 48px;border-bottom:1px solid var(--k-black);">
+    <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-bottom:64px;">03 — Variants</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0;border:1px solid var(--k-black);">
+
+      <!-- Mark on dark -->
+      <div style="border-right:1px solid var(--k-black);border-bottom:1px solid var(--k-black);aspect-ratio:1;background:var(--k-black);display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 100 100" style="width:108px;height:108px;"><path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/></svg>
+      </div>
+      <!-- Mark on light -->
+      <div style="border-right:1px solid var(--k-black);border-bottom:1px solid var(--k-black);aspect-ratio:1;display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 100 100" style="width:108px;height:108px;"><path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="var(--k-black)"/></svg>
+      </div>
+      <!-- Monogram square -->
+      <div style="border-right:1px solid var(--k-black);border-bottom:1px solid var(--k-black);aspect-ratio:1;display:flex;align-items:center;justify-content:center;">
+        <div style="width:112px;height:112px;background:var(--k-black);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 100 100" style="width:66px;height:66px;"><path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/></svg>
+        </div>
+      </div>
+      <!-- CW mono -->
+      <div style="border-bottom:1px solid var(--k-black);aspect-ratio:1;display:flex;align-items:center;justify-content:center;">
+        <div style="font-family:var(--k-disp);font-weight:900;font-size:52px;letter-spacing:-0.06em;">CW</div>
+      </div>
+
+      <!-- Horizontal lockup light -->
+      <div style="border-right:1px solid var(--k-black);grid-column:span 2;padding:48px;display:flex;align-items:center;gap:20px;">
+        <div style="width:56px;height:56px;background:var(--k-black);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg viewBox="0 0 100 100" style="width:36px;height:36px;"><path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/></svg>
+        </div>
+        <span style="font-family:var(--k-disp);font-weight:800;font-size:32px;letter-spacing:-0.04em;">Coachwright</span>
+      </div>
+      <!-- Horizontal lockup dark -->
+      <div style="grid-column:span 2;padding:48px;background:var(--k-black);display:flex;align-items:center;gap:20px;">
+        <div style="width:56px;height:56px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg viewBox="0 0 100 100" style="width:34px;height:34px;"><path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#fff"/></svg>
+        </div>
+        <span style="font-family:var(--k-disp);font-weight:800;font-size:32px;letter-spacing:-0.04em;color:#fff;">Coachwright</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CONSTRUCTION ============ -->
+  <div style="padding:96px 48px 128px;">
+    <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-bottom:64px;">04 — Construction &amp; Rationale</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0;border-top:1px solid var(--k-black);">
+      <div style="padding:32px;border-bottom:1px solid var(--k-g20);border-right:1px solid var(--k-g20);">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">THE MARK</div>
+        <p style="color:var(--k-g80);font-size:14px;">One solid form: a barbell collar seen end-on, its mouth cut with two flat, machined faces. The negative space resolves into a hard <strong>C</strong> — a single glyph, not an outline.</p>
+      </div>
+      <div style="padding:32px;border-bottom:1px solid var(--k-g20);border-right:1px solid var(--k-g20);">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">TYPE</div>
+        <p style="color:var(--k-g80);font-size:14px;">Inter Tight, 800 weight, −0.04em tracking on the wordmark. Numbers and labels in JetBrains Mono.</p>
+      </div>
+      <div style="padding:32px;border-bottom:1px solid var(--k-g20);">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">COLOR</div>
+        <p style="color:var(--k-g80);font-size:14px;">Absolute black on white, or reversed. No accent color — the confidence is in the contrast.</p>
+      </div>
+      <div style="padding:32px;border-right:1px solid var(--k-g20);">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">CLEARSPACE</div>
+        <p style="color:var(--k-g80);font-size:14px;">Keep clearspace equal to the width of the mark's mouth on all sides. Never crowd it.</p>
+      </div>
+      <div style="padding:32px;border-right:1px solid var(--k-g20);">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">MIN SIZE</div>
+        <p style="color:var(--k-g80);font-size:14px;">Mark: 16px. Full lockup: 120px wide. Below that, use the square monogram only.</p>
+      </div>
+      <div style="padding:32px;">
+        <div style="font-family:var(--k-mono);font-size:11px;letter-spacing:0.16em;color:var(--k-g60);margin-bottom:12px;">MOTION</div>
+        <p style="color:var(--k-g80);font-size:14px;">Continuous ring sweep for loading; left-to-right wipe-build + wordmark for launch. Sharp arrival, no overshoot.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

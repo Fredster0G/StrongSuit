@@ -2,12 +2,12 @@ import { useState, useMemo, useEffect } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import type { Program, Day, Block, ExercisePrescription } from '@/db/types'
-import { newId } from '@/lib/core'
+import type { Program, Day, ExercisePrescription } from '@/db/types'
 import { Button, EmptyState } from '@/design'
 import { Plus } from 'lucide-react'
 import ExerciseRow from './ExerciseRow'
 import ExerciseSearch from './ExerciseSearch'
+import { makeBlock, makeExercisePrescription } from './builderMutations'
 
 interface DayCanvasProps {
   draft: Program
@@ -64,7 +64,7 @@ export default function DayCanvas({ draft, dayId, commitChange }: DayCanvasProps
         e.preventDefault()
         if (day.blocks.length === 0) {
           // Create block implicitly
-          const newBlock: Block = { id: newId(), type: 'straight', exercises: [] }
+          const newBlock = makeBlock()
           updateDay({ ...day, blocks: [...day.blocks, newBlock] })
           setTargetBlockId(newBlock.id)
         } else {
@@ -85,21 +85,12 @@ export default function DayCanvas({ draft, dayId, commitChange }: DayCanvasProps
 
 
   const addBlock = () => {
-    const newBlock: Block = {
-      id: newId(),
-      type: 'straight',
-      exercises: []
-    }
-    updateDay({ ...day, blocks: [...day.blocks, newBlock] })
+    updateDay({ ...day, blocks: [...day.blocks, makeBlock()] })
   }
 
   const handleAddExercise = (exerciseDefId: string) => {
     if (!targetBlockId) return
-    const newEx: ExercisePrescription = {
-      id: newId(),
-      exerciseId: exerciseDefId,
-      sets: [{ reps: '10', loadMode: 'absolute' }]
-    }
+    const newEx = makeExercisePrescription(exerciseDefId)
     const newBlocks = day.blocks.map(b => {
       if (b.id === targetBlockId) {
         return { ...b, exercises: [...b.exercises, newEx] }
@@ -167,7 +158,16 @@ export default function DayCanvas({ draft, dayId, commitChange }: DayCanvasProps
           icon={<Plus size={28} />}
           title="Empty Day"
           body="Press '/' to quickly search and add an exercise, or click below."
-          action={<Button variant="primary" onClick={() => { addBlock(); setTargetBlockId(day.blocks.length > 0 ? day.blocks[day.blocks.length-1].id : null); setSearchOpen(true); }}><Plus size={14} /> Add Exercise</Button>}
+          action={<Button variant="primary" onClick={() => {
+            // Don't call addBlock() then read day.blocks — `day` is this
+            // render's stale prop, so the just-added block wouldn't be in it
+            // yet (updateDay hasn't round-tripped through Dexie). Build the
+            // block here and target it directly instead.
+            const newBlock = makeBlock()
+            updateDay({ ...day, blocks: [...day.blocks, newBlock] })
+            setTargetBlockId(newBlock.id)
+            setSearchOpen(true)
+          }}><Plus size={14} /> Add Exercise</Button>}
         />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -188,7 +188,7 @@ export default function DayCanvas({ draft, dayId, commitChange }: DayCanvasProps
                 
                 <div className="mt-2">
                   <Button variant="ghost" size="sm" onClick={() => { setTargetBlockId(block.id); setSearchOpen(true); }} className="text-faint hover:text-ink">
-                    <Plus size={14} className="mr-1.5" /> Add Exercise
+                    <Plus size={14} className="me-1.5" /> Add Exercise
                   </Button>
                 </div>
               </div>
@@ -201,7 +201,7 @@ export default function DayCanvas({ draft, dayId, commitChange }: DayCanvasProps
       {day.blocks.length > 0 && (
         <div className="mt-8 pt-4 border-t border-line border-dashed">
           <Button variant="ghost" size="sm" onClick={addBlock} className="text-muted hover:text-ink">
-            <Plus size={14} className="mr-1.5" /> New Block
+            <Plus size={14} className="me-1.5" /> New Block
           </Button>
         </div>
       )}

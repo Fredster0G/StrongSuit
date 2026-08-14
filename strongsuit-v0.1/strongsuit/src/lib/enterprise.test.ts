@@ -34,6 +34,25 @@ describe('staff commissions', () => {
     const payments = [pay({ clientId: 'c1', amount: 1000 }), pay({ clientId: 'c2', amount: 1000 })]
     expect(totalCommissionsForMonth([a, b], clients, payments, '2026-07')).toBe(100)
   })
+
+  it("a payment's own staffId wins over the client's CURRENT staffId — the reassignment case", () => {
+    const original = staff({ id: 'original', commissionPercent: 20 })
+    const newCoach = staff({ id: 'new-coach', commissionPercent: 20 })
+    // The client is now assigned to newCoach, but this payment was collected
+    // back when the original coach still had them — the original coach did
+    // that work and must still get paid for it.
+    const clients = [client({ id: 'c1', staffId: 'new-coach' })]
+    const payments = [pay({ clientId: 'c1', amount: 500, staffId: 'original' })]
+    expect(staffCommissionForMonth(original, clients, payments, '2026-07')).toBe(100)
+    expect(staffCommissionForMonth(newCoach, clients, payments, '2026-07')).toBe(0)
+  })
+
+  it("falls back to the client's staffId for older payments with no staffId of their own", () => {
+    const alex = staff({ id: 's1', commissionPercent: 20 })
+    const clients = [client({ id: 'c1', staffId: 's1' })]
+    const payments = [pay({ clientId: 'c1', amount: 500 })] // no staffId — pre-v1.6 row
+    expect(staffCommissionForMonth(alex, clients, payments, '2026-07')).toBe(100)
+  })
 })
 
 describe('coupons & invoicing', () => {

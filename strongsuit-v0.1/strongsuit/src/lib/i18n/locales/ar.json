@@ -1,0 +1,59 @@
+{
+  "_meta": "العربية — SEED TRANSLATION, needs review by a native speaker before release. Exists primarily so RTL layout can actually be tested; see docs/plans/07-PLATFORM.md §1.4.",
+
+  "nav.today": "اليوم",
+  "nav.clients": "العملاء",
+  "nav.programs": "البرامج",
+  "nav.exercises": "التمارين",
+  "nav.filmRoom": "غرفة التحليل",
+  "nav.calendar": "التقويم",
+  "nav.science": "العلوم",
+  "nav.studioHub": "مركز الاستوديو",
+  "nav.business": "الأعمال",
+  "nav.team": "الفريق",
+  "nav.leads": "العملاء المحتملون",
+  "nav.leaderboard": "لوحة المتصدرين",
+  "nav.sync": "رابط الاستوديو",
+  "nav.reports": "التقارير",
+  "nav.settings": "الإعدادات",
+  "nav.sectionCore": "الأساسية",
+  "nav.sectionStudio": "الاستوديو",
+
+  "action.save": "حفظ",
+  "action.cancel": "إلغاء",
+  "action.delete": "حذف",
+  "action.edit": "تعديل",
+  "action.close": "إغلاق",
+  "action.retry": "إعادة المحاولة",
+  "action.export": "تصدير",
+  "action.import": "استيراد",
+  "action.search": "بحث",
+  "action.add": "إضافة",
+  "action.back": "رجوع",
+
+  "backup.none": "لا توجد نسخة احتياطية",
+  "backup.today": "تم النسخ الاحتياطي اليوم",
+  "backup.daysAgo": {
+    "zero": "لا توجد نسخة احتياطية",
+    "one": "النسخ الاحتياطي قبل يوم",
+    "two": "النسخ الاحتياطي قبل يومين",
+    "few": "النسخ الاحتياطي قبل # أيام",
+    "many": "النسخ الاحتياطي قبل # يومًا",
+    "other": "النسخ الاحتياطي قبل # يوم"
+  },
+  "backup.tooltipNone": "لا توجد نسخة احتياطية بعد",
+  "backup.tooltipDays": {
+    "one": "آخر نسخة احتياطية قبل يوم",
+    "two": "آخر نسخة احتياطية قبل يومين",
+    "few": "آخر نسخة احتياطية قبل # أيام",
+    "many": "آخر نسخة احتياطية قبل # يومًا",
+    "other": "آخر نسخة احتياطية قبل # يوم"
+  },
+
+  "routeError.title": "حدث خطأ في هذه الصفحة",
+  "routeError.notFound": "الصفحة غير موجودة",
+  "routeError.body": "واجهت هذه الصفحة خطأ. باقي التطبيق لا يزال يعمل، ولم تتغير أي من بياناتك.",
+  "routeError.reload": "إعادة تحميل الصفحة",
+  "routeError.home": "العودة إلى اليوم",
+  "routeError.loading": "جارٍ التحميل…"
+}

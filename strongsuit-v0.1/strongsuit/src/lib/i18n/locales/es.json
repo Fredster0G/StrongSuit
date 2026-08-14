@@ -1,0 +1,68 @@
+{
+  "_meta": "Español. SEED TRANSLATION — needs review by a native speaker before release. See docs/plans/07-PLATFORM.md §1.3 (Tier 1 = full human review).",
+
+  "nav.today": "Hoy",
+  "nav.clients": "Clientes",
+  "nav.programs": "Programas",
+  "nav.exercises": "Ejercicios",
+  "nav.filmRoom": "Sala de Vídeo",
+  "nav.calendar": "Calendario",
+  "nav.science": "Ciencia",
+  "nav.studioHub": "Centro del Estudio",
+  "nav.business": "Negocio",
+  "nav.team": "Equipo",
+  "nav.leads": "Prospectos",
+  "nav.leaderboard": "Clasificaciones",
+  "nav.sync": "Studio Link",
+  "nav.reports": "Informes",
+  "nav.settings": "Ajustes",
+  "nav.sectionCore": "Principal",
+  "nav.sectionStudio": "Estudio",
+
+  "action.save": "Guardar",
+  "action.cancel": "Cancelar",
+  "action.delete": "Eliminar",
+  "action.edit": "Editar",
+  "action.close": "Cerrar",
+  "action.retry": "Reintentar",
+  "action.export": "Exportar",
+  "action.import": "Importar",
+  "action.search": "Buscar",
+  "action.add": "Añadir",
+  "action.back": "Atrás",
+
+  "backup.none": "Sin copia de seguridad",
+  "backup.today": "Copia hecha hoy",
+  "backup.daysAgo": {
+    "one": "Copia hace # día",
+    "other": "Copia hace # días"
+  },
+  "backup.tooltipNone": "Aún no hay copia de seguridad",
+  "backup.tooltipDays": {
+    "one": "Última copia hace # día",
+    "other": "Última copia hace # días"
+  },
+
+  "routeError.title": "Algo ha fallado en esta página",
+  "routeError.notFound": "Página no encontrada",
+  "routeError.body": "Esta página ha encontrado un error. El resto de la aplicación sigue funcionando y tus datos no han cambiado.",
+  "routeError.reload": "Recargar esta página",
+  "routeError.home": "Volver a Hoy",
+  "routeError.loading": "Cargando…",
+
+  "quickLog.title": "Registro rápido",
+  "quickLog.loggingTo": "Registrando para",
+  "quickLog.willLog": "Se registrará",
+  "quickLog.logIt": "Registrar",
+  "quickLog.noSessions": "Aún no hay sesiones registradas",
+  "quickLog.lastSessionToday": "Última sesión hoy",
+  "quickLog.lastSessionDays": {
+    "one": "Última sesión hace # día",
+    "other": "Última sesión hace # días"
+  },
+  "quickLog.reps": {
+    "one": "# repetición",
+    "other": "# repeticiones"
+  },
+  "quickLog.today": "Hoy"
+}

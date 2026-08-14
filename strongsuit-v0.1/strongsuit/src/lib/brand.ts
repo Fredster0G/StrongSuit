@@ -10,7 +10,12 @@
 
 export const APP_NAME = 'Coachwright'
 export const APP_TAGLINE = 'Coaching workstation'
-export const APP_ONELINER = 'Pay once. Own your coaching business forever.'
+// S15: free tier (≤3 clients) + Coachwright Membership ($29/mo) replaced the
+// one-time-purchase model — see docs/MEMBERSHIP.md. Not referenced by any
+// component yet (grep before assuming otherwise if that's changed), but kept
+// accurate since new landing/about copy is exactly the kind of place a
+// stale constant like this quietly resurfaces.
+export const APP_ONELINER = 'Free for up to 3 clients. $29/mo, flat, for the rest of your practice.'
 
 /** Backup file extension shown to the trainer (new canonical + legacy accepted). */
 export const BACKUP_EXT = '.coachwright'

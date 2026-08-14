@@ -74,13 +74,198 @@ export interface Rep {
   eccentricMs: number       // time descending
   concentricMs: number      // time ascending
   depth: number             // depthPct at the bottom
+  /**
+   * How well the working joint was actually SEEN during this rep
+   * (docs/plans/04-FILM-ROOM-V2.md §2, Layer 3).
+   *
+   * `partial`/`unmeasurable` mean equipment was blocking the joint and
+   * `lib/skeleton.ts` reconstructed it. The depth number above is then an
+   * inference, and the UI must not present it as a measurement — a coach
+   * trusting a wrong depth is worse than a coach seeing an honest gap.
+   *
+   * Optional because a caller that never feeds occlusion data (any existing
+   * one) gets `undefined` and the UI treats it exactly as before.
+   */
+  quality?: RepQuality
+  /**
+   * What the depth percentage is measured AGAINST.
+   *
+   * `preset` = true full extension for this equipment. `observed` = the widest
+   * angle that appeared in this clip, which is a weaker claim: if the lifter
+   * never reached the top, the reference is short and the percentage is
+   * flattering. The UI says which, because presenting them identically is how
+   * a coach ends up trusting the wrong one (debt #10).
+   */
+  depthBasis?: 'preset' | 'observed'
+}
+
+/** `measured` = seen throughout · `partial` = reconstructed for part of the
+ *  rep · `unmeasurable` = hidden for the part that decides depth. */
+export type RepQuality = 'measured' | 'partial' | 'unmeasurable'
+
+/** A rep is `partial` once this share of its frames were reconstructed. */
+export const PARTIAL_FRACTION = 0.15
+/** …and `unmeasurable` past this. Beyond roughly half, the depth number is an
+ *  inference wearing a measurement's clothes. */
+export const UNMEASURABLE_FRACTION = 0.5
+
+/**
+ * Grade how well a rep was actually observed.
+ *
+ * Deliberately NOT a flat percentage of occluded frames: the frames that
+ * decide depth are the ones AT THE BOTTOM. A rep that was crystal clear on
+ * the way down and hidden at the turnaround is exactly the rep whose depth
+ * number is worthless, and a percentage would happily call it "85% measured".
+ * So a hidden bottom is enough on its own to withhold the number.
+ */
+export function gradeRep(opts: {
+  /** Frames in the rep. */
+  total: number
+  /** How many had the working joint reconstructed rather than seen. */
+  reconstructed: number
+  /** Was the joint reconstructed at the rep's deepest point? */
+  bottomReconstructed: boolean
+}): RepQuality {
+  if (opts.total <= 0) return 'unmeasurable'
+  const share = opts.reconstructed / opts.total
+  if (opts.bottomReconstructed && share >= PARTIAL_FRACTION) return 'unmeasurable'
+  if (share >= UNMEASURABLE_FRACTION) return 'unmeasurable'
+  if (share > 0 || opts.bottomReconstructed) return 'partial'
+  return 'measured'
+}
+
+/** What to say about a rep whose depth we don't fully trust. Null when the
+ *  rep was properly measured and the number needs no caveat. */
+export function repQualityNote(q: RepQuality): string | null {
+  switch (q) {
+    case 'measured': return null
+    case 'partial': return 'Part of this rep was blocked — depth is approximate.'
+    case 'unmeasurable': return "The joint was hidden at the bottom of this rep, so depth couldn't be measured."
+  }
+}
+
+/**
+ * One-Euro Filter (1€ Filter) for smoothing noisy signals (like pose angles).
+ * It uses an adaptive low-pass filter: heavy smoothing at low speeds (to cut jitter),
+ * and light smoothing at high speeds (to reduce lag).
+ */
+class OneEuroFilter {
+  private minCutoff: number
+  private beta: number
+  private dCutoff: number
+
+  constructor(minCutoff = 1.0, beta = 0.05, dCutoff = 1.0) {
+    this.minCutoff = minCutoff
+    this.beta = beta
+    this.dCutoff = dCutoff
+  }
+
+  private lastTime = -1
+  private xHat = 0
+  private dxHat = 0
+
+  private alpha(cutoff: number, dt: number) {
+    const tau = 1.0 / (2 * Math.PI * cutoff)
+    return 1.0 / (1.0 + tau / dt)
+  }
+
+  filter(tMs: number, x: number): number {
+    const t = tMs / 1000.0 // seconds
+    if (this.lastTime < 0) {
+      this.lastTime = t
+      this.xHat = x
+      this.dxHat = 0
+      return x
+    }
+    const dt = t - this.lastTime
+    if (dt <= 0) return this.xHat // prevent div by zero if timestamps repeat
+
+    // 1. estimate speed (derivative) and smooth it
+    const dx = (x - this.xHat) / dt
+    const alphaD = this.alpha(this.dCutoff, dt)
+    this.dxHat = alphaD * dx + (1 - alphaD) * this.dxHat
+
+    // 2. compute dynamic cutoff: higher speed -> higher cutoff -> less smoothing (less lag)
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dxHat)
+
+    // 3. smooth the position
+    const alphaX = this.alpha(cutoff, dt)
+    this.xHat = alphaX * x + (1 - alphaX) * this.xHat
+
+    this.lastTime = t
+    return this.xHat
+  }
+
+  reset() {
+    this.lastTime = -1
+    this.xHat = 0
+    this.dxHat = 0
+  }
+}
+
+// ---- Landmark-level smoothing (spec §4.16b advanced tracking) ----
+// The 1€ filter above was only ever applied to the ANGLE derived from
+// landmarks — the raw skeleton (what actually renders on screen, and what
+// bar-path tracking reads) was never smoothed at all, so it could visibly
+// jitter frame to frame even while the rep-counting math looked stable.
+// LandmarkSmoother runs every one of the 33 points through its own x/y
+// filter pair, AND blends toward the smoothed history — not the raw new
+// value — when a point's visibility is in the low-confidence band just
+// above the detection gate, since that's exactly where occlusion (a bench,
+// a rack upright) produces a real but noisy, low-confidence estimate rather
+// than a clean drop to "not visible." A point never seen before has nothing
+// to blend toward, so the very first sighting always passes through raw.
+const LOW_CONF_VISIBILITY = 0.7 // below this: blend toward filtered history
+
+export class LandmarkSmoother {
+  private fx: (OneEuroFilter | undefined)[] = []
+  private fy: (OneEuroFilter | undefined)[] = []
+  private last: (Lm | undefined)[] = []
+
+  smooth(lms: Lm[], tMs: number): Lm[] {
+    return lms.map((lm, i) => {
+      const visibility = lm.visibility ?? 1
+      if (visibility < MIN_VISIBILITY) return lm // not visible at all — nothing to smooth, pass through
+
+      this.fx[i] ??= new OneEuroFilter()
+      this.fy[i] ??= new OneEuroFilter()
+      // Always update the filter, even on a low-confidence frame — it needs
+      // continuous input to track velocity correctly. What changes with
+      // confidence is which output we actually USE below.
+      const filteredX = this.fx[i]!.filter(tMs, lm.x)
+      const filteredY = this.fy[i]!.filter(tMs, lm.y)
+
+      let outX = filteredX, outY = filteredY
+      const prev = this.last[i]
+      if (prev && visibility < LOW_CONF_VISIBILITY) {
+        // Low-confidence band: lean toward the last trusted position rather
+        // than this frame's noisy (but nominally-above-the-gate) reading —
+        // linearly, so a point right at the MIN_VISIBILITY floor relies
+        // almost entirely on the held position, and one just under the
+        // high-confidence line barely blends at all.
+        const trust = (visibility - MIN_VISIBILITY) / (LOW_CONF_VISIBILITY - MIN_VISIBILITY)
+        outX = filteredX * trust + prev.x * (1 - trust)
+        outY = filteredY * trust + prev.y * (1 - trust)
+      }
+
+      const out = { ...lm, x: outX, y: outY }
+      this.last[i] = out
+      return out
+    })
+  }
+
+  reset() {
+    this.fx = []
+    this.fy = []
+    this.last = []
+  }
 }
 
 /**
  * Feed (timestampMs, angle) samples in order; reps are detected when the angle
  * dips below the lower threshold and returns above the upper threshold
  * (hysteresis avoids double-counting jitter). Thresholds auto-calibrate from
- * the observed range after a small warm-up window.
+ * the observed range after a small warm-up window. Uses a 1€ filter for smoothing.
  */
 export class RepCounter {
   private minSeen = Infinity
@@ -90,9 +275,39 @@ export class RepCounter {
   private descentStart = 0
   private bottomTime = 0
   private bottomAngle = Infinity
+  private filter = new OneEuroFilter()
   readonly reps: Rep[] = []
 
-  push(tMs: number, angle: number): Rep | null {
+  /**
+   * True full-extension angle for this movement, when it's actually known
+   * (supplied by an equipment preset — see `lib/equipment.ts`).
+   *
+   * Fixes debt #10. Without it, depth is measured against the widest angle
+   * that happened to appear in the footage — fine for a squat where the
+   * lifter stands up between reps, and wrong on a **leg press where nobody
+   * locks out**, because the "top" was never in the clip and every depth
+   * reading is inflated against a reference that doesn't exist.
+   */
+  private readonly opts: { referenceExtended?: number; referenceTarget?: number }
+  constructor(opts: { referenceExtended?: number; referenceTarget?: number } = {}) {
+    this.opts = opts
+  }
+
+  // Occlusion bookkeeping for the rep currently in progress. Counted here
+  // rather than by the caller because only this class knows where a rep
+  // starts, and — critically — which frame was the BOTTOM, which is the one
+  // that decides whether the depth number means anything at all.
+  private framesInRep = 0
+  private occludedInRep = 0
+  private bottomWasOccluded = false
+
+  /**
+   * @param occluded true when the working joint was reconstructed rather than
+   *        seen this frame. Optional: callers that don't track occlusion pass
+   *        nothing and reps come back without a `quality`, exactly as before.
+   */
+  push(tMs: number, rawAngle: number, occluded = false): Rep | null {
+    const angle = this.filter.filter(tMs, rawAngle)
     this.minSeen = Math.min(this.minSeen, angle)
     this.maxSeen = Math.max(this.maxSeen, angle)
     this.samples++
@@ -108,10 +323,18 @@ export class RepCounter {
       this.descentStart = tMs
       this.bottomAngle = angle
       this.bottomTime = tMs
+      this.framesInRep = 1
+      this.occludedInRep = occluded ? 1 : 0
+      this.bottomWasOccluded = occluded
     } else if (this.phase === 'down') {
+      this.framesInRep++
+      if (occluded) this.occludedInRep++
       if (angle < this.bottomAngle) {
         this.bottomAngle = angle
         this.bottomTime = tMs
+        // Whether the DEEPEST frame was seen or inferred — the single fact
+        // that decides if this rep's depth is a measurement or a guess.
+        this.bottomWasOccluded = occluded
       }
       if (angle > upThresh) {
         this.phase = 'idle'
@@ -119,7 +342,17 @@ export class RepCounter {
           bottomAngle: Math.round(this.bottomAngle),
           eccentricMs: Math.max(0, this.bottomTime - this.descentStart),
           concentricMs: Math.max(0, tMs - this.bottomTime),
-          depth: depthPct(this.bottomAngle, this.maxSeen),
+          depth: depthPct(
+            this.bottomAngle,
+            this.opts.referenceExtended ?? this.maxSeen,
+            this.opts.referenceTarget,
+          ),
+          depthBasis: this.opts.referenceExtended != null ? 'preset' : 'observed',
+          quality: gradeRep({
+            total: this.framesInRep,
+            reconstructed: this.occludedInRep,
+            bottomReconstructed: this.bottomWasOccluded,
+          }),
         }
         this.reps.push(rep)
         return rep
@@ -134,18 +367,66 @@ export class RepCounter {
     this.samples = 0
     this.phase = 'idle'
     this.reps.length = 0
+    this.filter.reset()
+  }
+}
+
+/** One buffered frame's worth of joint angles, keyed by timestamp — what
+ *  FilmRoomPage accumulates while the focus joint is still undetermined. */
+export interface AngleSample { tMs: number; angles: Partial<Record<JointName, number>> }
+
+/**
+ * Feed a buffered history of per-frame angles for one joint through a
+ * RepCounter that hasn't seen any frames yet. `RepCounter` and
+ * `FocusJointPicker` both need a warm-up window before they'll trust
+ * anything (a real movement range for the counter, `>24°` of observed range
+ * for the joint picker) — until both warm-ups clear, no angle sample ever
+ * reaches the counter, so a rep completed *during* that calibration window
+ * would otherwise be silently dropped forever. Call this once, the moment
+ * the focus joint first becomes known, with every sample buffered since
+ * tracking started — it replays them through the counter in order so any
+ * rep that already happened gets scored retroactively, then live frames
+ * continue pushing into the same counter as normal.
+ */
+export function replayHistory(counter: RepCounter, history: AngleSample[], joint: JointName): void {
+  for (const sample of history) {
+    const a = sample.angles[joint]
+    if (a != null) counter.push(sample.tMs, a)
   }
 }
 
 /** Pick the joint with the largest range of motion — that's the working joint
- *  (knee for squats, elbow for presses/curls, hip for hinges). */
+ *  (knee for squats, elbow for presses/curls, hip for hinges).
+ *
+ *  Also tracks how often each joint was actually visible out of every frame
+ *  pushed. Equipment (a bench, a machine arm, a rack upright) partially
+ *  blocking a limb doesn't just drop that joint to `null` cleanly — MediaPipe
+ *  still emits a low-confidence estimate right around the visibility gate,
+ *  and that estimate can swing wildly frame to frame. A joint that's only
+ *  ever glimpsed through a gap can rack up a bigger apparent "range" than a
+ *  joint that's genuinely, cleanly tracked the whole time — so `best()`
+ *  requires a joint to have been seen in most frames before it's trusted,
+ *  not just to have the widest range. */
 export class FocusJointPicker {
-  private ranges = new Map<JointName, { min: number; max: number }>()
+  private ranges = new Map<JointName, { min: number; max: number; seen: number }>()
+  private totalFrames = 0
+
+  /** Joints an equipment preset says can't be the working joint on this
+   *  movement — seated legs on a lat pulldown, for instance. Excluding them is
+   *  not a heuristic: it's knowing what machine the person is on, which beats
+   *  any amount of inference from the pixels. */
+  private readonly exclude: readonly JointName[]
+  constructor(exclude: readonly JointName[] = []) {
+    this.exclude = exclude
+  }
+
   push(angles: Partial<Record<JointName, number>>) {
+    this.totalFrames++
     for (const [name, a] of Object.entries(angles) as [JointName, number][]) {
+      if (this.exclude.includes(name)) continue
       const r = this.ranges.get(name)
-      if (!r) this.ranges.set(name, { min: a, max: a })
-      else { r.min = Math.min(r.min, a); r.max = Math.max(r.max, a) }
+      if (!r) this.ranges.set(name, { min: a, max: a, seen: 1 })
+      else { r.min = Math.min(r.min, a); r.max = Math.max(r.max, a); r.seen++ }
     }
   }
   best(): JointName | null {
@@ -153,7 +434,8 @@ export class FocusJointPicker {
     let bestRange = 24 // require meaningful movement
     for (const [name, r] of this.ranges) {
       const range = r.max - r.min
-      if (range > bestRange) { bestRange = range; bestName = name }
+      const visibleFrac = this.totalFrames > 0 ? r.seen / this.totalFrames : 0
+      if (range > bestRange && visibleFrac >= 0.6) { bestRange = range; bestName = name }
     }
     return bestName
   }

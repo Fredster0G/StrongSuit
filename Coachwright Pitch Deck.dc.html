@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Inter+Tight:wght@500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<script src="./deck-stage.js"></script>
+<style>
+:root{
+  --k-black:#000; --k-white:#fff;
+  --k-g02:#FAFAFA; --k-g05:#F2F2F2; --k-g10:#E6E6E6; --k-g20:#CCC; --k-g40:#999; --k-g60:#666; --k-g80:#333;
+  --k-disp:"Inter Tight","Helvetica Neue",Arial,sans-serif;
+  --k-text:"Inter","Helvetica Neue",Arial,sans-serif;
+  --k-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+.slide{ width:1920px; height:1080px; background:var(--k-white); color:var(--k-black); font-family:var(--k-text); letter-spacing:-0.005em; position:relative; overflow:hidden; }
+.slide.dark{ background:var(--k-black); color:var(--k-white); }
+.eyebrow{ font-family:var(--k-mono); font-size:20px; letter-spacing:0.16em; text-transform:uppercase; color:var(--k-g60); }
+.eyebrow.on-dark{ color:var(--k-g40); }
+.mono{ font-family:var(--k-mono); }
+.disp{ font-family:var(--k-disp); font-weight:800; letter-spacing:-0.04em; line-height:0.92; }
+.pagefoot{ position:absolute; bottom:56px; left:96px; right:96px; display:flex; justify-content:space-between; font-family:var(--k-mono); font-size:16px; letter-spacing:0.16em; text-transform:uppercase; color:var(--k-g40); }
+.pagefoot.on-dark{ color:var(--k-g60); }
+</style>
+</helmet>
+
+<x-import component-from-global-scope="deck-stage" from="./deck-stage.js" width="1920" height="1080" hint-size="100%,100%" data-uneditable="">
+
+  <!-- 01 — COVER -->
+  <section data-label="01 Cover" data-speaker-notes="Coachwright: coaching software you own. Pay once, sixty dollars, own it forever. No subscription, no per-client tax, no data held hostage in someone else's cloud." class="slide dark" style="display:flex;flex-direction:column;justify-content:space-between;padding:96px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;align-items:center;gap:24px;">
+        <div style="width:88px;height:88px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 100 100" style="width:52px;height:52px;"><path d="M 70.6 74.5 A 32 32 0 1 0 70.6 25.5" fill="none" stroke="#fff" stroke-width="15" stroke-linecap="square"></path></svg>
+        </div>
+        <span class="disp" style="font-size:44px;color:#fff;">Coachwright</span>
+      </div>
+      <span class="eyebrow on-dark">Investor / Buyer Brief — 2026</span>
+    </div>
+    <div>
+      <div class="eyebrow on-dark" style="margin-bottom:40px;">Coaching software you own</div>
+      <h1 class="disp" style="font-size:200px;color:#fff;margin:0;">Pay once.<br>Own it forever.</h1>
+    </div>
+    <div style="display:flex;gap:48px;">
+      <span class="mono" style="font-size:22px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g40);">Owned</span>
+      <span class="mono" style="font-size:22px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g40);">Private</span>
+      <span class="mono" style="font-size:22px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g40);">Forever</span>
+    </div>
+  </section>
+
+  <!-- 02 — THE PROBLEM -->
+  <section data-label="02 The Problem" data-speaker-notes="Coaching software is rented, and the rent scales with your success. TrueCoach jumps from 26 dollars at 5 clients to 129 at 50. It adds a 5 percent cut of every client payment. Trainerize charges 169 dollars just to put your name on the app. The price on the page is never the price on the invoice." class="slide" style="padding:96px;display:flex;flex-direction:column;">
+    <div class="eyebrow" style="margin-bottom:20px;">01 — The Problem</div>
+    <h2 class="disp" style="font-size:88px;max-width:1400px;margin-bottom:52px;">Coaches rent their own business back, and the rent goes up as they grow.</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid var(--k-black);">
+      <div style="padding:48px;border-right:1px solid var(--k-g20);">
+        <div class="eyebrow" style="margin-bottom:20px;">Per-client tax</div>
+        <div class="mono disp" style="font-size:72px;letter-spacing:-0.04em;">$26 → $129</div>
+        <p style="color:var(--k-g80);font-size:22px;margin-top:16px;line-height:1.5;">TrueCoach, per month, as a roster grows from 5 to 50 clients. Same features. Higher bill.</p>
+      </div>
+      <div style="padding:48px;border-right:1px solid var(--k-g20);">
+        <div class="eyebrow" style="margin-bottom:20px;">Payment surcharge</div>
+        <div class="mono disp" style="font-size:72px;letter-spacing:-0.04em;">+5%</div>
+        <p style="color:var(--k-g80);font-size:22px;margin-top:16px;line-height:1.5;">Taken off the top of every client payment processed through the platform — on top of Stripe's own fee.</p>
+      </div>
+      <div style="padding:48px;">
+        <div class="eyebrow" style="margin-bottom:20px;">Branding fee</div>
+        <div class="mono disp" style="font-size:72px;letter-spacing:-0.04em;">$169</div>
+        <p style="color:var(--k-g80);font-size:22px;margin-top:16px;line-height:1.5;">Setup fee to show your own name on the app. White-label runs $166–225 / month on some rivals.</p>
+      </div>
+    </div>
+    <p class="mono" style="font-size:18px;color:var(--k-g60);margin-top:28px;">Sources: TrueCoach &amp; Trainerize published pricing, 2026 · assistantcoach.fit hidden-fees audit, May 2026</p>
+    <div class="pagefoot"><span>Coachwright</span><span>№ 02</span></div>
+  </section>
+
+  <!-- 03 — WHAT THEY FEEL -->
+  <section data-label="03 Buyer Psychology" data-speaker-notes="Four feelings drive this buyer. Punished for growing. Held hostage by data in a vendor cloud. Nickeled by surcharges and paywalls. Unseen — treated like a consumer, not a small business. We talk to them as a fellow tradesperson." class="slide dark" style="padding:96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow on-dark" style="margin-bottom:48px;">02 — Who We Sell To</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--k-g80);">
+      <div style="padding:56px 56px 56px 0;border-bottom:1px solid var(--k-g80);border-right:1px solid var(--k-g80);">
+        <span class="mono disp" style="font-size:56px;color:#fff;">01</span>
+        <h3 class="disp" style="font-size:52px;color:#fff;margin:16px 0;">Punished for growing</h3>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">Per-client pricing means every new client raises the rent.</p>
+      </div>
+      <div style="padding:56px 0 56px 56px;border-bottom:1px solid var(--k-g80);">
+        <span class="mono disp" style="font-size:56px;color:#fff;">02</span>
+        <h3 class="disp" style="font-size:52px;color:#fff;margin:16px 0;">Held hostage</h3>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">Client data lives in a vendor's cloud. Canceling feels like losing the business.</p>
+      </div>
+      <div style="padding:56px 56px 0 0;border-right:1px solid var(--k-g80);">
+        <span class="mono disp" style="font-size:56px;color:#fff;">03</span>
+        <h3 class="disp" style="font-size:52px;color:#fff;margin:16px 0;">Nickeled &amp; dimed</h3>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">Payment surcharges, feature paywalls, "contact sales."</p>
+      </div>
+      <div style="padding:56px 0 0 56px;">
+        <span class="mono disp" style="font-size:56px;color:#fff;">04</span>
+        <h3 class="disp" style="font-size:52px;color:#fff;margin:16px 0;">Unseen</h3>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">Small businesses, treated like consumers by billion-dollar platforms.</p>
+      </div>
+    </div>
+    <div class="pagefoot on-dark"><span>Coachwright</span><span>№ 03</span></div>
+  </section>
+
+  <!-- 04 — THE SOLUTION -->
+  <section data-label="04 The Solution" data-speaker-notes="Coachwright is a professional coaching workstation you buy once for sixty dollars and own outright. Every client, program, and session on your machine — not our servers, because we don't have servers. Everything included. Free updates for the version you buy." class="slide" style="padding:96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow" style="margin-bottom:40px;">03 — The Solution</div>
+    <h2 class="disp" style="font-size:120px;max-width:1500px;margin-bottom:64px;">One price. Every feature. Your data, on your machine.</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid var(--k-black);">
+      <div style="padding:56px;border-right:1px solid var(--k-g20);">
+        <div class="mono disp" style="font-size:96px;">$60</div>
+        <div class="eyebrow" style="margin-top:16px;">Once — not per month</div>
+      </div>
+      <div style="padding:56px;border-right:1px solid var(--k-g20);">
+        <div class="mono disp" style="font-size:96px;">0</div>
+        <div class="eyebrow" style="margin-top:16px;">Servers we run · network calls</div>
+      </div>
+      <div style="padding:56px;">
+        <div class="mono disp" style="font-size:96px;">∞</div>
+        <div class="eyebrow" style="margin-top:16px;">Clients · no per-seat tax</div>
+      </div>
+    </div>
+    <p style="font-size:32px;color:var(--k-g80);margin-top:56px;max-width:1400px;line-height:1.4;">Everything you use TrueCoach for — the program builder, logging, analytics, video analysis, nutrition, the client-facing app — minus the monthly bill and the per-client tax.</p>
+    <div class="pagefoot"><span>Coachwright</span><span>№ 04</span></div>
+  </section>
+
+  <!-- 05 — MARKET -->
+  <section data-label="05 Market" data-speaker-notes="The personal trainer software market is roughly 780 million dollars in 2025, growing to about 1.85 billion by 2033 at an 11 percent CAGR. The US is the largest single market at 22 percent. Coaches — not gyms — are 72 percent of usage. That's exactly our buyer." class="slide dark" style="padding:96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow on-dark" style="margin-bottom:40px;">04 — Market</div>
+    <h2 class="disp" style="font-size:96px;color:#fff;max-width:1500px;margin-bottom:80px;">A growing market, priced for the vendor — not the coach.</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--k-g80);border-bottom:1px solid var(--k-g80);">
+      <div style="padding:48px 48px 48px 0;border-right:1px solid var(--k-g80);">
+        <div class="mono disp" style="font-size:88px;color:#fff;">$780M</div>
+        <p style="color:var(--k-g40);font-size:20px;margin-top:16px;line-height:1.45;">Personal trainer software market, 2025</p>
+      </div>
+      <div style="padding:48px;border-right:1px solid var(--k-g80);">
+        <div class="mono disp" style="font-size:88px;color:#fff;">$1.85B</div>
+        <p style="color:var(--k-g40);font-size:20px;margin-top:16px;line-height:1.45;">Projected by 2033 · 11.4% CAGR</p>
+      </div>
+      <div style="padding:48px;border-right:1px solid var(--k-g80);">
+        <div class="mono disp" style="font-size:88px;color:#fff;">72%</div>
+        <p style="color:var(--k-g40);font-size:20px;margin-top:16px;line-height:1.45;">Of usage is individual coaches, not gyms</p>
+      </div>
+      <div style="padding:48px 0 48px 48px;">
+        <div class="mono disp" style="font-size:88px;color:#fff;">22%</div>
+        <p style="color:var(--k-g40);font-size:20px;margin-top:16px;line-height:1.45;">US share — the largest single market</p>
+      </div>
+    </div>
+    <p class="mono" style="font-size:18px;color:var(--k-g60);margin-top:40px;">Sources: Future Market Report &amp; Future Market Insights, personal trainer software market, 2025–2026</p>
+    <div class="pagefoot on-dark"><span>Coachwright</span><span>№ 05</span></div>
+  </section>
+
+  <!-- 06 — COST COMPARISON -->
+  <section data-label="06 Cost Comparison" data-speaker-notes="Here's the math over five years for a coach growing to fifty clients. TrueCoach runs about seven and a half thousand dollars. Trainerize with add-ons, similar. Coachwright is sixty dollars, once — or 960 if you add our optional hosting the whole time. We win on price by an order of magnitude." class="slide" style="padding:72px 96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow" style="margin-bottom:16px;">05 — Cost Comparison</div>
+    <h2 class="disp" style="font-size:68px;margin-bottom:14px;">5-year cost of ownership</h2>
+    <p style="font-size:22px;color:var(--k-g60);margin-bottom:36px;">A single coach growing to ~50 active clients. Subscription figures use published mid-tier pricing.</p>
+    <div style="border:2px solid var(--k-black);">
+      <!-- header -->
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;border-bottom:2px solid var(--k-black);">
+        <div style="padding:28px 40px;" class="eyebrow">Platform</div>
+        <div style="padding:28px 40px;border-left:1px solid var(--k-g20);" class="eyebrow">Per year</div>
+        <div style="padding:28px 40px;border-left:1px solid var(--k-g20);" class="eyebrow">5-year total</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;border-bottom:1px solid var(--k-g20);">
+        <div style="padding:24px 40px;font-size:28px;font-weight:600;">TrueCoach (Pro, 50 clients)</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $1,548</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $7,740</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;border-bottom:1px solid var(--k-g20);">
+        <div style="padding:24px 40px;font-size:28px;font-weight:600;">Trainerize + nutrition + branding</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $1,380</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $7,069</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;border-bottom:1px solid var(--k-g20);">
+        <div style="padding:24px 40px;font-size:28px;font-weight:600;">Everfit (annual + add-ons)</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $1,536</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">≈ $7,680</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;background:var(--k-black);color:#fff;">
+        <div style="padding:24px 40px;font-size:28px;font-weight:700;">Coachwright — self-hosted</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g80);font-size:28px;" class="mono">$0 after yr 1</div>
+        <div style="padding: 24px 40px; border-left: 1px solid var(--k-g80); font-size: 28px; font-family: jetbrains mono, ui-monospace,menlo,monospace" class="mono disp">$60</div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;background:var(--k-g05);">
+        <div style="padding:24px 40px;font-size:28px;font-weight:600;">Coachwright + our hosting ($15/mo)</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">$180</div>
+        <div style="padding:24px 40px;border-left:1px solid var(--k-g20);font-size:28px;" class="mono">$960</div>
+      </div>
+    </div>
+    <p style="font-size:24px;margin-top:28px;">Against TrueCoach, a coach keeps <strong class="mono">≈ $7,680</strong> over five years — even with our hosting on the whole time, <strong class="mono">≈ $6,780</strong>.</p>
+    <div class="pagefoot"><span>Coachwright</span><span>№ 06</span></div>
+  </section>
+
+  <!-- 07 — FEATURE COMPARISON -->
+  <section data-label="07 Feature Comparison" data-speaker-notes="We play fair. We concede live in-app chat and a hosted-by-default cloud — those need a server we deliberately don't run. We win on video Film Room, on-device movement-tracking AI, the Profit Planner, the offline Companion for clients, true data ownership, and flat pricing." class="slide" style="padding:72px 96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow" style="margin-bottom:20px;">06 — Feature Comparison</div>
+    <h2 class="disp" style="font-size:64px;margin-bottom:36px;">Scrupulously fair. We still win where it counts.</h2>
+    <div style="border:2px solid var(--k-black);font-size:24px;">
+      <div style="display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr 1fr;border-bottom:2px solid var(--k-black);">
+        <div style="padding:22px 32px;" class="eyebrow">Capability</div>
+        <div style="padding:22px 20px;text-align:center;background:var(--k-black);color:#fff;" class="eyebrow on-dark">Coachwright</div>
+        <div style="padding:22px 20px;text-align:center;border-left:1px solid var(--k-g20);" class="eyebrow">TrueCoach</div>
+        <div style="padding:22px 20px;text-align:center;border-left:1px solid var(--k-g20);" class="eyebrow">Trainerize</div>
+        <div style="padding:22px 20px;text-align:center;border-left:1px solid var(--k-g20);" class="eyebrow">Everfit</div>
+      </div>
+      <!-- rows -->
+      <div class="cmp-row">
+        <div class="cmp-name">Program builder + logging</div>
+        <div class="cmp-us">Yes</div><div class="cmp">Yes</div><div class="cmp">Yes</div><div class="cmp">Yes</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">Video Film Room (frame analysis)</div>
+        <div class="cmp-us">Yes</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div><div class="cmp">Basic</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">On-device movement-tracking AI</div>
+        <div class="cmp-us">Yes</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">Profit Planner (business math)</div>
+        <div class="cmp-us">Yes</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">Offline client Companion (no account)</div>
+        <div class="cmp-us">Yes</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">Data owned &amp; stored locally</div>
+        <div class="cmp-us">Yes</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div><div class="cmp cmp-no">—</div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-name">Live in-app client chat</div>
+        <div class="cmp cmp-no">—</div><div class="cmp">Yes</div><div class="cmp">Yes</div><div class="cmp">Yes</div>
+      </div>
+      <div class="cmp-row" style="border-bottom:none;">
+        <div class="cmp-name" style="font-weight:700;">Pricing model</div>
+        <div class="cmp-us mono">$60 once</div><div class="cmp mono cmp-no">per-client</div><div class="cmp mono cmp-no">per-client</div><div class="cmp mono cmp-no">tiered</div>
+      </div>
+    </div>
+    <div class="pagefoot"><span>Coachwright</span><span>№ 07</span></div>
+  </section>
+
+  <!-- 08 — PRIVACY -->
+  <section data-label="08 Privacy" data-speaker-notes="This is the moat. No account, no login — the app doesn't know who you are. Zero network calls in the core app; no telemetry. Backups are AES-GCM encrypted with a passphrase only you hold. There's no server to breach because there's nothing to breach. Honesty is verifiable: invite the audit." class="slide dark" style="padding:88px 96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow on-dark" style="margin-bottom:36px;">07 — Privacy &amp; Ownership</div>
+    <h2 class="disp" style="font-size:112px;color:#fff;max-width:1500px;margin-bottom:60px;">We couldn't read your data if we wanted to.</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--k-g80);">
+      <div style="padding:48px 48px 0 0;border-right:1px solid var(--k-g80);">
+        <div class="eyebrow on-dark" style="margin-bottom:20px;">No account</div>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">No login. The app doesn't know who you are. Nothing to sign into, nothing to leak.</p>
+      </div>
+      <div style="padding:48px;border-right:1px solid var(--k-g80);">
+        <div class="eyebrow on-dark" style="margin-bottom:20px;">Zero network calls</div>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">The core app makes no outbound requests. No telemetry, no beacons — auditable, and we invite the audit.</p>
+      </div>
+      <div style="padding:48px 0 0 48px;">
+        <div class="eyebrow on-dark" style="margin-bottom:20px;">Encrypted backups</div>
+        <p style="color:var(--k-g40);font-size:24px;line-height:1.5;">AES-GCM with a passphrase only you hold. Your export, your key, your machine.</p>
+      </div>
+    </div>
+    <p style="font-size:30px;color:#fff;margin-top:52px;max-width:1500px;line-height:1.4;">No servers means no data breaches, no vendor lock-in, no HIPAA cloud liability. If you leave, you lose nothing — it was always yours.</p>
+    <div class="pagefoot on-dark"><span>Coachwright</span><span>№ 08</span></div>
+  </section>
+
+  <!-- 09 — PRICING & HOSTING OPTIONS -->
+  <section data-label="09 Pricing &amp; Hosting" data-speaker-notes="Sixty dollars gets you the whole app, forever, all updates included for the version you buy. Hosting is entirely optional. Run it yourself for free. Or don't sync at all — pair devices over WiFi, hand a file back and forth, or just tell the client their program; they never need the app. If you want managed sync and a customer web portal, add our hosting for fifteen a month." class="slide" style="padding:72px 96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow" style="margin-bottom:20px;">08 — Pricing &amp; Hosting</div>
+    <h2 class="disp" style="font-size:72px;margin-bottom:16px;">$60 once. Hosting is optional — always.</h2>
+    <p style="font-size:22px;color:var(--k-g60);margin-bottom:36px;">All updates included for the version you buy. Pick how your data moves — or choose to let it not move at all.</p>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:0;border:2px solid var(--k-black);">
+      <div style="padding:48px;border-right:1px solid var(--k-g20);background:var(--k-black);color:#fff;">
+        <div class="eyebrow on-dark" style="margin-bottom:24px;">The license</div>
+        <div class="mono disp" style="font-size:88px;color:#fff;">$60</div>
+        <p style="color:var(--k-g40);font-size:22px;margin-top:20px;line-height:1.5;">One time. Every feature. Free updates for the version. 60-day refund.</p>
+      </div>
+      <div style="padding:48px;border-right:1px solid var(--k-g20);">
+        <div class="eyebrow" style="margin-bottom:24px;">Host it yourself</div>
+        <div class="mono disp" style="font-size:88px;">Free</div>
+        <p style="color:var(--k-g80);font-size:22px;margin-top:20px;line-height:1.5;">Run it entirely on your own machine. WiFi device pairing, file sync — no cloud, no fee, ever.</p>
+      </div>
+      <div style="padding:48px;">
+        <div class="eyebrow" style="margin-bottom:24px;">Our hosting — optional</div>
+        <div class="mono disp" style="font-size:88px;">$15<span style="font-size:34px;color:var(--k-g60);">/mo</span></div>
+        <p style="color:var(--k-g80);font-size:22px;margin-top:20px;line-height:1.5;">Managed cloud sync across devices plus a customer web portal. Cancel anytime — the app still works.</p>
+      </div>
+    </div>
+    <div style="margin-top:40px;border-top:2px solid var(--k-black);padding-top:32px;">
+      <div class="eyebrow" style="margin-bottom:24px;">You never have to use hosting at all</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:32px;">
+        <div><span class="mono disp" style="font-size:40px;">01</span><p style="font-size:22px;color:var(--k-g80);margin-top:12px;line-height:1.45;">Sync devices over local WiFi</p></div>
+        <div><span class="mono disp" style="font-size:40px;">02</span><p style="font-size:22px;color:var(--k-g80);margin-top:12px;line-height:1.45;">Send data files back and forth</p></div>
+        <div><span class="mono disp" style="font-size:40px;">03</span><p style="font-size:22px;color:var(--k-g80);margin-top:12px;line-height:1.45;">Give clients the offline Companion</p></div>
+        <div><span class="mono disp" style="font-size:40px;">04</span><p style="font-size:22px;color:var(--k-g80);margin-top:12px;line-height:1.45;">Or just tell the client — no app required</p></div>
+      </div>
+    </div>
+    <div class="pagefoot"><span>Coachwright</span><span>№ 09</span></div>
+  </section>
+
+  <!-- 10 — ROADMAP -->
+  <section data-label="10 Roadmap" data-speaker-notes="Shipping now: the desktop app on Windows and Mac, with the full feature set. On the way: an Android app, and a web portal for customers on our hosting plan. We're being honest about iOS — it's not planned yet. Every update is included; no in-app purchases, no paywalls." class="slide dark" style="padding:96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="eyebrow on-dark" style="margin-bottom:48px;">09 — Roadmap</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--k-g80);border-bottom:1px solid var(--k-g80);">
+      <div style="padding:56px 56px 56px 0;border-right:1px solid var(--k-g80);">
+        <div class="eyebrow on-dark" style="margin-bottom:24px;">Shipping now</div>
+        <h3 class="disp" style="font-size:48px;color:#fff;margin-bottom:24px;">Desktop app</h3>
+        <p style="color:var(--k-g40);font-size:22px;line-height:1.55;">Windows &amp; Mac. Full feature set — builder, Film Room, movement AI, Profit Planner, Companion export.</p>
+      </div>
+      <div style="padding:56px;border-right:1px solid var(--k-g80);">
+        <div class="eyebrow on-dark" style="margin-bottom:24px;">On the way</div>
+        <h3 class="disp" style="font-size:48px;color:#fff;margin-bottom:24px;">Android app</h3>
+        <p style="color:var(--k-g40);font-size:22px;line-height:1.55;">A mobile client for coaches, syncing with the desktop app. In active development for the Play Store.</p>
+      </div>
+      <div style="padding:56px 0 56px 56px;">
+        <div class="eyebrow on-dark" style="margin-bottom:24px;">Alongside hosting</div>
+        <h3 class="disp" style="font-size:48px;color:#fff;margin-bottom:24px;">Customer web portal</h3>
+        <p style="color:var(--k-g40);font-size:22px;line-height:1.55;">A launching website for customers on the cloud-hosting plan — manage sync and access from anywhere.</p>
+      </div>
+    </div>
+    <p style="font-size:24px;color:var(--k-g40);margin-top:56px;max-width:1400px;line-height:1.5;">Honest about scope: <strong style="color:#fff;">an iOS app is not planned yet.</strong> Every update is free — no in-app purchases, no feature paywalls.</p>
+    <div class="pagefoot on-dark"><span>Coachwright</span><span>№ 10</span></div>
+  </section>
+
+  <!-- 11 — CLOSE -->
+  <section data-label="11 Close" data-speaker-notes="Coachwright is for coaches who want to own their business, not rent it. Built like an instrument, not a dashboard. Sixty dollars. Owned, private, forever." class="slide" style="display:flex;flex-direction:column;justify-content:space-between;padding:96px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div style="display:flex;align-items:center;gap:24px;">
+        <div style="width:88px;height:88px;background:var(--k-black);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 100 100" style="width:52px;height:52px;"><path d="M 70.6 74.5 A 32 32 0 1 0 70.6 25.5" fill="none" stroke="#fff" stroke-width="15" stroke-linecap="square"></path></svg>
+        </div>
+        <span class="disp" style="font-size:44px;">Coachwright</span>
+      </div>
+      <span class="eyebrow">The Close</span>
+    </div>
+    <h2 class="disp" style="font-size:168px;max-width:1600px;">Own your coaching business.</h2>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+      <div>
+        <div class="mono disp" style="font-size:96px;">$60. Forever.</div>
+        <div class="eyebrow" style="margin-top:20px;">Owned · Private · Forever</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="mono" style="font-size:22px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);">coachwright.app</div>
+        <div class="mono" style="font-size:22px;letter-spacing:0.16em;text-transform:uppercase;color:var(--k-g60);margin-top:8px;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b7c4c3c2d3ded8f7d4d8d6d4dfc0c5ded0dfc399d6c7c7">[email&#160;protected]</a></div>
+      </div>
+    </div>
+  </section>
+</x-import>
+
+<style>
+.cmp-row{ display:grid; grid-template-columns:2.2fr 1fr 1fr 1fr 1fr; border-bottom:1px solid var(--k-g20); }
+.cmp-name{ padding:20px 32px; font-weight:600; }
+.cmp{ padding:20px 20px; text-align:center; border-left:1px solid var(--k-g20); color:var(--k-g80); }
+.cmp-no{ color:var(--k-g40); }
+.cmp-us{ padding:20px 20px; text-align:center; background:var(--k-g05); font-weight:700; }
+</style>
+</x-dc>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

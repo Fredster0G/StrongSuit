@@ -2,9 +2,10 @@ import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ClipboardList, Plus, FileSignature } from 'lucide-react'
-import { programsRepo, clientsRepo } from '@/db/repo'
+import { programsRepo, clientsRepo, staffRepo } from '@/db/repo'
 import type { Program, ProgramStatus } from '@/db/types'
 import { stamp, fullName } from '@/lib/core'
+import { getActiveStaffId } from '@/lib/activeStaff'
 import {
   Button, Select, Card, SectionHeader,
   EmptyState, Tag, Table
@@ -21,6 +22,7 @@ export default function ProgramsPage() {
   const navigate = useNavigate()
   const programs = useLiveQuery(() => programsRepo.all(), [], undefined)
   const clients = useLiveQuery(() => clientsRepo.all(), [], undefined)
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
   const [filter, setFilter] = useState<'all' | ProgramStatus>('all')
 
   const filtered = useMemo(() => {
@@ -39,7 +41,8 @@ export default function ProgramsPage() {
       name: 'New Program',
       description: '',
       status: 'draft',
-      weeks: []
+      weeks: [],
+      staffId: getActiveStaffId(staff) ?? undefined,
     } as unknown as Program)
     await programsRepo.create(fresh)
     navigate(`/programs/${fresh.id}/edit`)
@@ -103,7 +106,7 @@ export default function ProgramsPage() {
                 )}
               </td>
               <td><Tag tone={STATUS_TONE[p.status]}>{p.status}</Tag></td>
-              <td className="font-mono tnum text-xs text-muted">
+              <td className="font-mono tabular-nums text-xs text-muted">
                 {new Date(p.updatedAt).toLocaleDateString()}
               </td>
             </tr>

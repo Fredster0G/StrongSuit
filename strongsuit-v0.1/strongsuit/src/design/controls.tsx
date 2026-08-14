@@ -64,7 +64,7 @@ Input.displayName = 'Input'
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className = '', ...rest }, ref) => (
-    <select ref={ref} className={`${fieldBase} h-9 pr-8 ${className}`} {...rest} />
+    <select ref={ref} className={`${fieldBase} h-9 pe-8 ${className}`} {...rest} />
   ),
 )
 Select.displayName = 'Select'

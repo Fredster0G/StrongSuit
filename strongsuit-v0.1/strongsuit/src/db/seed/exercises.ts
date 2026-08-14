@@ -1,5 +1,4 @@
 import type { Exercise, ExerciseCategory, TrackingType } from '../types'
-import { db } from '../schema'
 import { stamp } from '@/lib/core'
 
 // PHASE 3 EXPANSION POINT ————————————————————————————————
@@ -11,8 +10,9 @@ import { stamp } from '@/lib/core'
 import { p1 } from './exercises_p1'
 import { p2 } from './exercises_p2'
 import { p3 } from './exercises_p3'
+import { p4 } from './exercises_p4'
 
-type SeedRow = [name: string, aliases: string, cat: ExerciseCategory, muscles: string, equip: string, track: TrackingType, cues: string[]]
+type SeedRow = [name: string, aliases: string, cat: ExerciseCategory, muscles: string, equip: string, track: TrackingType, cues: string[], needsAuthoring?: boolean, level?: string, force?: string, mechanic?: string, secondary?: string]
 
 const S: SeedRow[] = [
   // ---- squat ----
@@ -65,36 +65,35 @@ const S: SeedRow[] = [
   ...p1,
   ...p2,
   ...p3,
+  ...p4,
   ['Ab Wheel Rollout', 'ab wheel,rollout', 'core', 'abs', 'ab wheel', 'reps', ['Ribs down before you roll', 'Only as far as the back stays flat']],
   // ---- conditioning ----
   ['Rowing Erg', 'row erg,rower,c2', 'conditioning', 'full body', 'rower', 'distance', ['Legs, then body, then arms', 'Long strokes beat fast strokes']],
   ['Assault Bike', 'air bike,echo bike', 'conditioning', 'full body', 'bike', 'time', ['Push and pull the handles', 'Settle into a sustainable cadence']],
-  ['Sled Push', 'prowler', 'conditioning', 'legs,full body', 'sled', 'distance', ['Low arm angle, long strides', 'Drive, don’t stomp']],
-  ['Burpee', 'burpees', 'conditioning', 'full body', 'bodyweight', 'reps', ['Chest to floor every rep', 'Jump and open the hips fully']],
   // ---- mobility ----
-  ['World’s Greatest Stretch', 'wgs,spiderman lunge stretch', 'mobility', 'hips,t-spine', 'bodyweight', 'reps', ['Long lunge, elbow toward instep', 'Rotate and reach tall']],
   ['90/90 Hip Switch', '90 90,hip switch', 'mobility', 'hips', 'bodyweight', 'reps', ['Both hips stay grounded', 'Move slow through the switch']],
 ]
 
 export function buildSeedExercises(): Exercise[] {
-  return S.map(([name, aliases, category, muscles, equip, defaultTracking, cues]) =>
+  return S.map(([name, aliases, category, muscles, equip, defaultTracking, cues, needsAuthoring, level, force, mechanic, secondary]) =>
     stamp({
       name,
       aliases: aliases ? aliases.split(',') : [],
       category,
-      primaryMuscles: muscles.split(','),
-      equipment: equip.split(','),
+      primaryMuscles: muscles ? muscles.split(',') : [],
+      equipment: equip ? equip.split(',') : [],
       cues,
       isCustom: false,
       defaultTracking,
+      needsAuthoring,
+      level,
+      force,
+      mechanic,
+      secondaryMuscles: secondary ? secondary.split(',') : undefined,
     } as Exercise),
   )
 }
 
-/** Idempotent: only seeds an empty library. */
-export async function seedExercisesIfEmpty() {
-  const count = await db.exercises.count()
-  if (count > 0) return false
-  await db.exercises.bulkAdd(buildSeedExercises())
-  return true
-}
+// The seeding entry point lives in `./index.ts`, which dynamic-imports this
+// module only when the library is actually empty — keep this file free of
+// anything the app needs on an ordinary boot.

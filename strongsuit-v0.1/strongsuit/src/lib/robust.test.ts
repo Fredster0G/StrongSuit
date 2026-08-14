@@ -105,10 +105,11 @@ describe('training load', () => {
     expect(sessionLoad(8, 60)).toBe(480)
   })
 
-  it('steady training lands in the ACWR sweet spot; a spike reads danger', () => {
+  it('steady training reads as steady; a spike reads as a sharp rise', () => {
     const steady = build(4, 3, 300, '2026-07-16')
     const a = acwr(steady, '2026-07-16')
-    expect(a.zone).toBe('sweet-spot')
+    expect(a.zone).toBe('steady')
+    expect(a.reliable).toBe(true)
     expect(a.ratio).toBeGreaterThanOrEqual(0.8)
     expect(a.ratio).toBeLessThanOrEqual(1.3)
 
@@ -118,11 +119,33 @@ describe('training load', () => {
       { date: '2026-07-15', load: 3000 }, { date: '2026-07-14', load: 3000 },
     ]
     expect(acwr(spike, '2026-07-16').ratio).toBeGreaterThan(1.5)
-    expect(acwr(spike, '2026-07-16').zone).toBe('danger')
+    expect(acwr(spike, '2026-07-16').zone).toBe('sharp-rise')
   })
 
-  it('empty history is flagged as insufficient', () => {
-    expect(acwr([], '2026-07-16').zone).toBe('detraining')
+  it('never claims to predict injury — the copy describes load, not risk', () => {
+    // Guards the honesty rule in lib/trainingLoad.ts. ACWR's own literature
+    // (Impellizzeri 2020, Lolli 2019) does not support a risk claim, so no
+    // zone copy may imply one.
+    const spike: DayLoad[] = [
+      ...build(4, 3, 200, '2026-07-16'),
+      { date: '2026-07-15', load: 3000 }, { date: '2026-07-14', load: 3000 },
+    ]
+    for (const note of [acwr(spike, '2026-07-16').note, acwr(build(4, 3, 300, '2026-07-16'), '2026-07-16').note]) {
+      expect(note).not.toMatch(/injury|danger|risk of|unsafe/i)
+    }
+  })
+
+  it('empty history is flagged as insufficient, not as detraining', () => {
+    const a = acwr([], '2026-07-16')
+    expect(a.zone).toBe('insufficient-data')
+    expect(a.reliable).toBe(false)
+  })
+
+  it('refuses to report a ratio until there is real history', () => {
+    // Two sessions is not a baseline. Reporting 1.4 from that would be noise
+    // dressed up as a measurement.
+    const thin: DayLoad[] = [{ date: '2026-07-15', load: 400 }, { date: '2026-07-14', load: 400 }]
+    expect(acwr(thin, '2026-07-16').reliable).toBe(false)
   })
 
   it('monotony rises when every day is identical', () => {

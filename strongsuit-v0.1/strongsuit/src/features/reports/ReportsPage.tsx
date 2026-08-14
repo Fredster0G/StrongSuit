@@ -1,17 +1,32 @@
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { BarChart3, Users, Zap } from 'lucide-react'
-import { Card, SectionHeader, Stat, EmptyState, Tag, PRTag, Avatar } from '@/design'
-import { clientsRepo, logsRepo, checkInsRepo } from '@/db/repo'
+import { Card, SectionHeader, Stat, EmptyState, Tag, PRTag, Avatar, Select, Field } from '@/design'
+import { clientsRepo, logsRepo, checkInsRepo, staffRepo, locationsRepo } from '@/db/repo'
 import { fullName, e1rm } from '@/lib/core'
 import { differenceInDays, parseISO } from 'date-fns'
 
 export default function ReportsPage() {
-  const clients = useLiveQuery(() => clientsRepo.active(), [], [])
+  const allActiveClients = useLiveQuery(() => clientsRepo.active(), [], [])
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
+  const locations = useLiveQuery(() => locationsRepo.all(), [], [])
+  const [staffFilter, setStaffFilter] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
+
+  // Studio scoping — only relevant once there's more than one coach or
+  // location to scope by; a solo trainer never sees this row at all.
+  const showScope = staff.length > 0 || locations.length > 0
+  const clients = allActiveClients.filter(c =>
+    (!staffFilter || c.staffId === staffFilter) && (!locationFilter || c.locationId === locationFilter),
+  )
+  const scopedClientIds = new Set(clients.map(c => c.id))
+
   const allLogs = useLiveQuery(async () => {
     const logs = await logsRepo.table.toArray()
     return logs.sort((a, b) => b.date.localeCompare(a.date))
-  }, [], [])
+  }, [], []).filter(l => scopedClientIds.has(l.clientId))
   const allCheckIns = useLiveQuery(() => checkInsRepo.table.toArray(), [], [])
+    .filter(ci => scopedClientIds.has(ci.clientId))
 
   const clientMap = new Map(clients.map(c => [c.id, c]))
 
@@ -85,11 +100,38 @@ export default function ReportsPage() {
     <div className="max-w-5xl mx-auto">
       <SectionHeader title="Reports" />
 
-      {allLogs.length === 0 && clients.length === 0 ? (
+      {showScope && (
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          {staff.length > 0 && (
+            <Field label="Coach">
+              <Select className="!h-8 w-44" value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+                <option value="">All coaches</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {locations.length > 0 && (
+            <Field label="Location">
+              <Select className="!h-8 w-44" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
+                <option value="">All locations</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </Select>
+            </Field>
+          )}
+        </div>
+      )}
+
+      {allActiveClients.length === 0 ? (
         <EmptyState
           icon={<BarChart3 size={32} strokeWidth={1.5} />}
           title="No data to report yet"
           body="Once you start logging sessions, cross-client analytics will appear here."
+        />
+      ) : clients.length === 0 ? (
+        <EmptyState
+          icon={<Users size={32} strokeWidth={1.5} />}
+          title="No clients match this scope"
+          body="Try a different coach or location."
         />
       ) : (
         <div className="space-y-8">
@@ -149,26 +191,26 @@ export default function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-line text-left text-2xs font-medium uppercase text-faint">
-                    <th className="pb-2 pr-4">Client</th>
-                    <th className="pb-2 pr-4">Sessions</th>
-                    <th className="pb-2 pr-4">Check-ins</th>
-                    <th className="pb-2 pr-4">Last Session</th>
+                  <tr className="border-b border-line text-start text-2xs font-medium uppercase text-faint">
+                    <th className="pb-2 pe-4">Client</th>
+                    <th className="pb-2 pe-4">Sessions</th>
+                    <th className="pb-2 pe-4">Check-ins</th>
+                    <th className="pb-2 pe-4">Last Session</th>
                     <th className="pb-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {clientStats.map(cs => (
                     <tr key={cs.client.id} className="border-b border-line/50">
-                      <td className="py-2.5 pr-4">
+                      <td className="py-2.5 pe-4">
                         <div className="flex items-center gap-2">
                           <Avatar person={cs.client} size={24} />
                           <span className="font-medium">{fullName(cs.client)}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 pr-4 font-mono tnum">{cs.sessionCount}</td>
-                      <td className="py-2.5 pr-4 font-mono tnum">{cs.checkInCount}</td>
-                      <td className="py-2.5 pr-4 text-faint">
+                      <td className="py-2.5 pe-4 font-mono tabular-nums">{cs.sessionCount}</td>
+                      <td className="py-2.5 pe-4 font-mono tabular-nums">{cs.checkInCount}</td>
+                      <td className="py-2.5 pe-4 text-faint">
                         {cs.lastSessionDate || '—'}
                       </td>
                       <td className="py-2.5">

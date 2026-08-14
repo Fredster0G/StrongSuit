@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Search, Plus, Dumbbell, Pencil, PlayCircle, Trash2 } from 'lucide-react'
+import { Search, Plus, Dumbbell, Pencil, PlayCircle, Trash2, Sparkles } from 'lucide-react'
 import { exercisesRepo } from '@/db/repo'
 import type { Exercise, ExerciseCategory, ExerciseVideoLink } from '@/db/types'
 import { createFuzzyIndex } from '@/lib/fuzzy'
+import { isEmbeddingsModelInstalled } from '@/lib/embeddings'
+import { ensureExercisesIndexed, semanticSearch, type IndexProgress } from '@/lib/exerciseSemanticIndex'
 import { stamp } from '@/lib/core'
 import { exerciseVideos } from '@/lib/videoEmbed'
 import { VideoViewerDialog } from './VideoViewer'
@@ -162,26 +164,74 @@ export default function LibraryPage() {
     return createFuzzyIndex(exercises || [], e => [e.name, ...e.aliases])
   }, [exercises])
 
+  // ---- Semantic search (opt-in, on-device — lib/exerciseSemanticIndex.ts) ----
+  // Fuzzy search above stays the instant, always-on default; this is a
+  // second mode a coach turns on deliberately, and only once the model is
+  // actually installed (Settings → On-device AI) — never auto-enabled, and
+  // never silently triggers the ~130MB download itself.
+  const [semanticMode, setSemanticMode] = useState(false)
+  const [modelReady, setModelReady] = useState(false)
+  const [indexing, setIndexing] = useState<IndexProgress | null>(null)
+  const [semanticResults, setSemanticResults] = useState<Exercise[] | null>(null)
+  const [semanticSearching, setSemanticSearching] = useState(false)
+  const searchSeq = useRef(0)
+
+  useEffect(() => {
+    isEmbeddingsModelInstalled().then(setModelReady)
+  }, [])
+
+  // Index (or refresh) the library the moment semantic mode is actually
+  // turned on, not on every render — indexing an already-current library is
+  // cheap (see ensureExercisesIndexed's own comment) but still real async
+  // work with a progress state worth showing once, not on every keystroke.
+  useEffect(() => {
+    if (!semanticMode || !modelReady || !exercises) return
+    let cancelled = false
+    setIndexing({ done: 0, total: exercises.length })
+    ensureExercisesIndexed(exercises, p => { if (!cancelled) setIndexing(p) })
+      .finally(() => { if (!cancelled) setIndexing(null) })
+    return () => { cancelled = true }
+  }, [semanticMode, modelReady, exercises])
+
+  // Debounced so typing doesn't fire a fresh model inference on every
+  // keystroke; searchSeq guards against an in-flight older query's result
+  // landing after a newer one's, since embedText's latency isn't fixed.
+  useEffect(() => {
+    if (!semanticMode || !modelReady || indexing) { setSemanticResults(null); return }
+    const q = query.trim()
+    if (!q) { setSemanticResults(null); return }
+    const seq = ++searchSeq.current
+    setSemanticSearching(true)
+    const timer = setTimeout(() => {
+      semanticSearch(q, exercises || []).then(results => {
+        if (searchSeq.current === seq) { setSemanticResults(results.map(r => r.exercise)); setSemanticSearching(false) }
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [semanticMode, modelReady, indexing, query, exercises])
+
   const filtered = useMemo(() => {
     if (!exercises) return []
     let list = exercises
-    
-    // Fuzzy search
-    if (query.trim()) {
+
+    if (semanticMode && modelReady && query.trim()) {
+      list = semanticResults ?? []
+    } else if (query.trim()) {
+      // Fuzzy search
       const results = searcher(query)
       list = results.map(r => r.item)
     } else {
       // sort alphabetically if no search
       list = [...list].sort((a, b) => a.name.localeCompare(b.name))
     }
-    
+
     // Category filter
     if (activeCat !== 'all') {
       list = list.filter(e => e.category === activeCat)
     }
-    
+
     return list
-  }, [exercises, query, activeCat, searcher])
+  }, [exercises, query, activeCat, searcher, semanticMode, modelReady, semanticResults])
 
   const loading = exercises === undefined
 
@@ -205,15 +255,34 @@ export default function LibraryPage() {
 
       <div className="mb-4 space-y-3">
         {/* Search */}
-        <div className="relative max-w-md">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-          <Input 
-            className="pl-9" 
-            placeholder="Search 350+ exercises by name or slang (e.g. 'rdl')..." 
-            value={query} 
-            onChange={e => setQuery(e.target.value)} 
-          />
+        <div className="flex max-w-md items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-faint" />
+            <Input
+              className="ps-9"
+              placeholder={semanticMode ? "Describe what you need (e.g. 'low-impact rear delt work')…" : "Search 350+ exercises by name or slang (e.g. 'rdl')..."}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => modelReady && setSemanticMode(m => !m)}
+            disabled={!modelReady}
+            title={modelReady
+              ? 'Search by meaning, not just name — describe what you need in plain language.'
+              : 'Download the semantic search model in Settings → On-device AI to turn this on.'}
+            className={`flex shrink-0 items-center gap-1 rounded-ctl border px-2.5 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              semanticMode ? 'border-verde-600 bg-verde-100/60 text-verde-700' : 'border-line text-muted hover:bg-surface2'
+            }`}
+          >
+            <Sparkles size={13} />
+            Meaning
+          </button>
         </div>
+        {semanticMode && indexing && (
+          <p className="text-2xs text-faint">Indexing library for semantic search… {indexing.done}/{indexing.total}</p>
+        )}
 
         {/* Category Chips */}
         <div className="flex flex-wrap gap-1.5">
@@ -241,11 +310,19 @@ export default function LibraryPage() {
 
       {loading ? (
         <div className="animate-pulse p-4 text-sm text-faint">Loading library…</div>
+      ) : semanticMode && (semanticSearching || indexing) && query.trim() ? (
+        <div className="animate-pulse p-4 text-sm text-faint">
+          {indexing ? 'Indexing library…' : 'Searching by meaning…'}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Dumbbell size={28} strokeWidth={1.25} />}
           title="No exercises found"
-          body={query ? "Try a different search term or category." : "Your library is empty."}
+          body={
+            semanticMode && query
+              ? "Nothing scored as a close enough match by meaning — try rephrasing, or turn off Meaning to search by name."
+              : query ? "Try a different search term or category." : "Your library is empty."
+          }
           action={!query && <Button variant="primary" onClick={openNew}><Plus size={14} /> Add exercise</Button>}
         />
       ) : (
@@ -284,7 +361,7 @@ export default function LibraryPage() {
               <td className="capitalize text-sm text-muted">{ex.category}</td>
               <td className="text-sm text-muted">{ex.equipment.join(', ') || '—'}</td>
               <td className="text-sm text-muted">{ex.primaryMuscles.join(', ') || '—'}</td>
-              <td className="text-right">
+              <td className="text-end">
                 <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
                   <Pencil size={14} />
                 </Button>

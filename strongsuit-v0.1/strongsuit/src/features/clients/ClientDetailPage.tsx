@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone, Wifi, Printer, Tv, Mail, MessageCircle, Download } from 'lucide-react'
-import { clientsRepo, logsRepo, clientNotesRepo, trainerRepo, programsRepo, exercisesRepo, staffRepo, locationsRepo } from '@/db/repo'
+import { ArrowLeft, Archive, ClipboardList, PenLine, Smartphone, Wifi, Printer, Tv, Mail, MessageCircle, Download, Bot } from 'lucide-react'
+import { clientsRepo, logsRepo, clientNotesRepo, trainerRepo, programsRepo, exercisesRepo, staffRepo, locationsRepo, messagesRepo } from '@/db/repo'
 import type { Client } from '@/db/types'
 import { fullName, daysSince } from '@/lib/core'
 import { exportClientPackage } from '@/db/portability'
 import { downloadText } from '@/db/backup'
 import {
   Button, Card, Tabs, Tag, Avatar, EmptyState, InjuryRibbon, toast,
-  Dialog, Field, Input, Textarea, Select,
+  Dialog, Field, Input, Textarea, Select, Combobox, type ComboboxOption,
 } from '@/design'
 import LogsTab from './LogsTab'
 import MetricsTab from './MetricsTab'
@@ -17,9 +17,11 @@ import OverviewTab from './OverviewTab'
 import CheckInsTab from './CheckInsTab'
 import BillingTab from './BillingTab'
 import NutritionTab from './NutritionTab'
+import FoodLogTab from './FoodLogTab'
 import CoachingTab from './CoachingTab'
 import MessagesTab from './MessagesTab'
 import { generateCompanionFile } from '../companion/export'
+import { useTranslation } from '@/lib/i18n'
 import { WiFiSyncDialog } from '../sync/WiFiSyncDialog'
 
 function EditClientDialog({ client, open, onClose }: { client: Client; open: boolean; onClose: () => void }) {
@@ -37,6 +39,7 @@ function EditClientDialog({ client, open, onClose }: { client: Client; open: boo
     leaderboardOptIn: client.leaderboardOptIn ?? false,
   })
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const { t } = useTranslation()
 
   async function save() {
     if (!form.firstName.trim()) return
@@ -45,39 +48,39 @@ function EditClientDialog({ client, open, onClose }: { client: Client; open: boo
       staffId: form.staffId || undefined,
       locationId: form.locationId || undefined,
     })
-    toast(`${form.firstName}'s details updated.`)
+    toast(t('clients.toast.updated', { name: form.firstName }))
     onClose()
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Edit client" width={480}>
+    <Dialog open={open} onClose={onClose} title={t('clients.edit.title')} width={480}>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="First name"><Input autoFocus value={form.firstName} onChange={set('firstName')} /></Field>
-        <Field label="Last name"><Input value={form.lastName} onChange={set('lastName')} /></Field>
-        <Field label="Email" hint="optional"><Input type="email" value={form.email} onChange={set('email')} /></Field>
-        <Field label="Phone" hint="optional"><Input value={form.phone} onChange={set('phone')} /></Field>
+        <Field label={t('clients.new.firstName')}><Input autoFocus value={form.firstName} onChange={set('firstName')} /></Field>
+        <Field label={t('clients.new.lastName')}><Input value={form.lastName} onChange={set('lastName')} /></Field>
+        <Field label={t('clients.new.email')} hint={t('clients.new.optional')}><Input type="email" value={form.email} onChange={set('email')} /></Field>
+        <Field label={t('clients.new.phone')} hint={t('clients.new.optional')}><Input value={form.phone} onChange={set('phone')} /></Field>
         <div className="col-span-2">
-          <Field label="Goals"><Textarea value={form.goals} onChange={set('goals')} /></Field>
+          <Field label={t('clients.new.goals')}><Textarea value={form.goals} onChange={set('goals')} /></Field>
         </div>
         <div className="col-span-2">
-          <Field label="Injuries & limitations" hint="shows as a ribbon in the program builder">
+          <Field label={t('clients.new.injuries')} hint={t('clients.new.injuriesHint')}>
             <Textarea value={form.injuries} onChange={set('injuries')} />
           </Field>
         </div>
         {(staff.length > 0 || locations.length > 0) && (
           <>
             {staff.length > 0 && (
-              <Field label="Assigned coach" hint="drives commission tracking">
+              <Field label={t('clients.edit.staff')} hint={t('clients.edit.staffHint')}>
                 <Select value={form.staffId} onChange={set('staffId')}>
-                  <option value="">— unassigned —</option>
+                  <option value="">{t('clients.edit.unassigned')}</option>
                   {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </Select>
               </Field>
             )}
             {locations.length > 0 && (
-              <Field label="Location">
+              <Field label={t('clients.edit.location')}>
                 <Select value={form.locationId} onChange={set('locationId')}>
-                  <option value="">— unassigned —</option>
+                  <option value="">{t('clients.edit.unassigned')}</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </Select>
               </Field>
@@ -87,13 +90,13 @@ function EditClientDialog({ client, open, onClose }: { client: Client; open: boo
         <div className="col-span-2">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="checkbox" checked={form.leaderboardOptIn} onChange={e => setForm(f => ({ ...f, leaderboardOptIn: e.target.checked }))} className="accent-[var(--verde-600)]" />
-            Include in cross-client leaderboards
+            {t('clients.edit.leaderboard')}
           </label>
         </div>
       </div>
       <div className="mt-4 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={save} disabled={!form.firstName.trim()}>Save changes</Button>
+        <Button variant="ghost" onClick={onClose}>{t('action.cancel')}</Button>
+        <Button variant="primary" onClick={save} disabled={!form.firstName.trim()}>{t('clients.edit.save')}</Button>
       </div>
     </Dialog>
   )
@@ -102,15 +105,16 @@ function EditClientDialog({ client, open, onClose }: { client: Client; open: boo
 function NotesTab({ clientId }: { clientId: string }) {
   const notes = useLiveQuery(() => clientNotesRepo.forClient(clientId), [clientId])
   const [content, setContent] = useState('')
+  const { t } = useTranslation()
 
   async function saveNote() {
     if (!content.trim()) return
     await clientNotesRepo.create({ clientId, content: content.trim() })
     setContent('')
-    toast('Note saved.')
+    toast(t('clients.toast.noteSaved'))
   }
 
-  if (notes === undefined) return <Card className="animate-pulse text-sm text-faint">Loading notes…</Card>
+  if (notes === undefined) return <Card className="animate-pulse text-sm text-faint">{t('clients.notes.loading')}</Card>
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -118,21 +122,21 @@ function NotesTab({ clientId }: { clientId: string }) {
         <Textarea 
           value={content} 
           onChange={e => setContent(e.target.value)} 
-          placeholder="Session observations, programming ideas, things to remember…" 
+          placeholder={t('clients.notes.placeholder')} 
           className="min-h-[100px]"
         />
         <div className="mt-3 flex justify-end">
-          <Button variant="primary" onClick={saveNote} disabled={!content.trim()}>Save note</Button>
+          <Button variant="primary" onClick={saveNote} disabled={!content.trim()}>{t('clients.notes.save')}</Button>
         </div>
       </Card>
       
       {notes.length === 0 ? (
-        <EmptyState title="No notes yet" body="Your notes will appear here." />
+        <EmptyState title={t('clients.notes.emptyTitle')} body={t('clients.notes.emptyBody')} />
       ) : (
         <div className="space-y-3">
           {notes.map(note => (
             <Card key={note.id}>
-              <p className="mb-2 text-2xs font-mono tnum text-muted">{new Date(note.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</p>
+              <p className="mb-2 text-2xs font-mono tabular-nums text-muted">{new Date(note.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</p>
               <p className="text-sm text-ink whitespace-pre-wrap">{note.content}</p>
             </Card>
           ))}
@@ -142,23 +146,53 @@ function NotesTab({ clientId }: { clientId: string }) {
   )
 }
 
+function PrintOptionsDialog({ client, activeProgramId, open, onClose }: { client: Client; activeProgramId?: string; open: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <Dialog open={open} onClose={onClose} title={t('clients.print.title')} width={400}>
+      <div className="flex flex-col gap-2 py-2">
+        <Button variant="ghost" className="justify-start" onClick={() => window.open(`#/print/progress/${client.id}`, '_blank')}>
+          <Printer size={16} className="me-3 text-muted" /> {t('clients.print.progress')}
+        </Button>
+        <Button variant="ghost" className="justify-start" onClick={() => window.open(`#/print/intake/${client.id}`, '_blank')}>
+          <Printer size={16} className="me-3 text-muted" /> {t('clients.print.intake')}
+        </Button>
+        <Button variant="ghost" className="justify-start" onClick={() => window.open(`#/print/messages/${client.id}`, '_blank')}>
+          <Printer size={16} className="me-3 text-muted" /> {t('clients.print.messages')}
+        </Button>
+        {activeProgramId && (
+          <Button variant="ghost" className="justify-start" onClick={() => window.open(`#/print/program/${client.id}/${activeProgramId}`, '_blank')}>
+            <Printer size={16} className="me-3 text-muted" /> {t('clients.print.program')}
+          </Button>
+        )}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <Button variant="ghost" onClick={onClose}>{t('action.close')}</Button>
+      </div>
+    </Dialog>
+  )
+}
+
+
 const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'coaching', label: 'Coaching' },
-  { id: 'program', label: 'Program' },
-  { id: 'logs', label: 'Logs' },
-  { id: 'checkins', label: 'Check-ins' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'nutrition', label: 'Nutrition' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'messages', label: 'Messages' },
-  { id: 'billing', label: 'Billing' },
+  { id: 'overview', labelKey: 'clients.tab.overview' },
+  { id: 'coaching', labelKey: 'clients.tab.coaching' },
+  { id: 'program', labelKey: 'clients.tab.program' },
+  { id: 'logs', labelKey: 'clients.tab.logs' },
+  { id: 'checkins', labelKey: 'clients.tab.checkins' },
+  { id: 'metrics', labelKey: 'clients.tab.metrics' },
+  { id: 'nutrition', labelKey: 'clients.tab.nutrition' },
+  { id: 'foodlog', labelKey: 'clients.tab.foodlog' },
+  { id: 'notes', labelKey: 'clients.tab.notes' },
+  { id: 'messages', labelKey: 'clients.tab.messages' },
+  { id: 'billing', labelKey: 'clients.tab.billing' },
 ]
 
 export default function ClientDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const client = useLiveQuery(() => clientsRepo.get(id), [id])
+  const allClients = useLiveQuery(() => clientsRepo.all(), [], [])
   const trainer = useLiveQuery(() => trainerRepo.get())
   const activeProgram = useLiveQuery(async () => {
     const progs = await programsRepo.forClient(id)
@@ -169,35 +203,43 @@ export default function ClientDetailPage() {
   const [tab, setTab] = useState('overview')
   const [showEdit, setShowEdit] = useState(false)
   const [showSync, setShowSync] = useState(false)
+  const [showPrint, setShowPrint] = useState(false)
+  const { t } = useTranslation()
 
-  if (client === undefined || trainer === undefined) return <Card className="animate-pulse text-sm text-faint">Loading…</Card>
+  if (client === undefined || trainer === undefined) return <Card className="animate-pulse text-sm text-faint">{t('clients.detail.loading')}</Card>
   if (!client) {
     return (
       <EmptyState
-        title="Client not found"
-        body="This client may have been deleted. Head back to the roster."
-        action={<Link to="/clients"><Button>Back to clients</Button></Link>}
+        title={t('clients.detail.notFoundTitle')}
+        body={t('clients.detail.notFoundBody')}
+        action={<Link to="/clients"><Button>{t('clients.detail.backToClients')}</Button></Link>}
       />
     )
   }
 
   const lastSessionDays = daysSince(lastLog ? `${lastLog.date}T00:00:00` : undefined)
 
+  const switcherOptions: ComboboxOption[] = allClients
+    .slice()
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
+    .map(c => ({ value: c.id, label: fullName(c) }))
+  const switcherValue: ComboboxOption = { value: client.id, label: fullName(client) }
+
   async function archive() {
     await clientsRepo.archive(client!.id)
-    toast(`${client!.firstName} archived. Their history is kept.`)
+    toast(t('clients.toast.archivedDetails', { name: client!.firstName }))
   }
 
   async function exportPortableData() {
     const pkg = await exportClientPackage(client!.id)
     downloadText(`${fullName(client!).replace(/\s+/g, '-').toLowerCase()}.cwclient.json`, JSON.stringify(pkg, null, 2))
-    toast('Client data exported. Hand this file to their next coach — any Coachwright install can import it.')
+    toast(t('clients.toast.exportedDetails'))
   }
 
   return (
     <div>
       <Link to="/clients" className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink">
-        <ArrowLeft size={13} /> Clients
+        <ArrowLeft size={13} /> {t('clients.title')}
       </Link>
 
       <div className="mb-4 flex items-start justify-between">
@@ -207,32 +249,40 @@ export default function ClientDetailPage() {
             <h1 className="font-display text-2xl font-bold tracking-tight">{fullName(client)}</h1>
             <div className="mt-0.5 flex items-center gap-2">
               <Tag tone={client.status === 'active' ? 'verde' : 'neutral'}>{client.status}</Tag>
-              <span className="font-mono tnum text-2xs text-faint">since {client.startDate}</span>
+              <span className="font-mono tabular-nums text-2xs text-faint">{t('clients.detail.since', { date: client.startDate })}</span>
               {client.email && (
-                <a href={`mailto:${client.email}`} className="text-faint hover:text-verde-600" title={`Email ${client.email}`}>
+                <a href={`mailto:${client.email}`} className="text-faint hover:text-verde-600" title={t('clients.detail.emailTooltip', { email: client.email })}>
                   <Mail size={13} />
                 </a>
               )}
               {client.phone && (
-                <a href={`sms:${client.phone}`} className="text-faint hover:text-verde-600" title={`Text ${client.phone}`}>
+                <a href={`sms:${client.phone}`} className="text-faint hover:text-verde-600" title={t('clients.detail.textTooltip', { phone: client.phone })}>
                   <MessageCircle size={13} />
                 </a>
               )}
             </div>
           </div>
+          {switcherOptions.length > 1 && (
+            <div className="w-48">
+              <Combobox
+                options={switcherOptions}
+                value={switcherValue}
+                onChange={o => { if (o.value !== client.id) navigate(`/clients/${o.value}`) }}
+                placeholder={t('clients.detail.switchClient')}
+              />
+            </div>
+          )}
         </div>
         {client.status !== 'archived' && (
           <div className="flex items-center gap-2">
             {activeProgram && (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => window.open(`#/tv/${client.id}`, '_blank')} title="Open a big-screen display for the gym floor">
-                  <Tv size={14} className="mr-1.5" /> TV mode
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => window.open(`#/print/program/${client.id}/${activeProgram.id}`, '_blank')}>
-                  <Printer size={14} className="mr-1.5" /> Print
-                </Button>
-              </>
+              <Button variant="ghost" size="sm" onClick={() => window.open(`#/tv/${client.id}`, '_blank')} title={t('clients.detail.tvModeTooltip')}>
+                <Tv size={14} className="me-1.5" /> {t('clients.detail.tvMode')}
+              </Button>
             )}
+            <Button variant="ghost" size="sm" onClick={() => setShowPrint(true)}>
+              <Printer size={14} className="me-1.5" /> {t('clients.detail.print')}
+            </Button>
             <Button variant="primary" size="sm" onClick={() => {
               if (activeProgram && activeProgram.weeks.length > 0 && activeProgram.weeks[0].days.length > 0) {
                 // Find next day logically? For now just pick first day of active program
@@ -244,13 +294,16 @@ export default function ClientDetailPage() {
                 navigate(`/log?clientId=${client.id}`)
               }
             }}>
-              <PenLine size={14} className="mr-1.5" /> Log Session
+              <PenLine size={14} className="me-1.5" /> {t('clients.detail.logSession')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowEdit(true)}>Edit</Button>
-            <Button variant="ghost" size="sm" onClick={exportPortableData} title="Export this client's full history to hand off to another coach">
-              <Download size={14} className="mr-1.5" /> Export data
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/assistant?clientId=${client.id}`)} title={t('clients.detail.askAssistantTooltip')}>
+              <Bot size={14} className="me-1.5" /> {t('clients.detail.askAssistant')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={archive}><Archive size={14} /> Archive</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowEdit(true)}>{t('clients.detail.edit')}</Button>
+            <Button variant="ghost" size="sm" onClick={exportPortableData} title={t('clients.detail.exportDataTooltip')}>
+              <Download size={14} className="me-1.5" /> {t('clients.detail.exportData')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={archive}><Archive size={14} /> {t('clients.detail.archive')}</Button>
           </div>
         )}
       </div>
@@ -260,18 +313,18 @@ export default function ClientDetailPage() {
       {client.status !== 'archived' && (!client.screening || !client.screening.cleared) && (
         <button
           onClick={() => setTab('coaching')}
-          className="mb-4 flex w-full items-start gap-2 rounded-ctl border border-ember-500/30 bg-ember-500/10 px-3 py-2 text-left text-xs text-ember-600"
+          className="mb-4 flex w-full items-start gap-2 rounded-ctl border border-ember-500/30 bg-ember-500/10 px-3 py-2 text-start text-xs text-ember-600"
         >
-          <span className="mt-px font-semibold uppercase tracking-wide">Safety</span>
+          <span className="mt-px font-semibold uppercase tracking-wide">{t('clients.detail.safety')}</span>
           <span className="text-ink">
             {!client.screening
-              ? 'No health screening on file. Run the PAR-Q+ and record a waiver before training — open the Coaching tab.'
-              : 'Screening flagged items — confirm physician clearance and record a waiver in the Coaching tab.'}
+              ? t('clients.detail.safetyNoScreening')
+              : t('clients.detail.safetyFlagged')}
           </span>
         </button>
       )}
 
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
+      <Tabs tabs={TABS.map(tab => ({ ...tab, label: t(tab.labelKey as any) }))} active={tab} onChange={setTab} />
 
       <div className="pt-4">
         {tab === 'overview' && (
@@ -288,37 +341,40 @@ export default function ClientDetailPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">{activeProgram.name}</h3>
-                  <p className="text-sm text-faint mt-1">{activeProgram.description || 'No description provided.'}</p>
+                  <p className="text-sm text-faint mt-1">{activeProgram.description || t('clients.detail.noDescription')}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button 
                     variant="ghost" 
                     onClick={() => setShowSync(true)}
                   >
-                    <Wifi size={16} className="mr-2" /> WiFi Sync
+                    <Wifi size={16} className="me-2" /> {t('clients.detail.wifiSync')}
                   </Button>
                   <Button 
                     variant="primary" 
                     onClick={async () => {
                       if (!client || !activeProgram || !trainer) return
-                      const exercises = await exercisesRepo.all()
-                      generateCompanionFile(client, activeProgram, trainer, exercises)
+                      const [exercises, messages] = await Promise.all([
+                        exercisesRepo.all(),
+                        messagesRepo.forClient(client.id)
+                      ])
+                      generateCompanionFile(client, activeProgram, trainer, exercises, messages)
                     }}
                   >
-                    <Smartphone size={16} className="mr-2" /> Export Companion App
+                    <Smartphone size={16} className="me-2" /> {t('clients.detail.exportCompanion')}
                   </Button>
                 </div>
               </div>
               <div className="mt-6 border-t border-line pt-4 flex gap-4">
-                <Link to={`/programs/${activeProgram.id}`}><Button variant="ghost" size="sm">Edit Program</Button></Link>
+                <Link to={`/programs/${activeProgram.id}`}><Button variant="ghost" size="sm">{t('clients.detail.editProgram')}</Button></Link>
               </div>
             </Card>
           ) : (
             <EmptyState
               icon={<ClipboardList size={28} strokeWidth={1.25} />}
-              title="No program assigned"
-              body="Build a program and assign it here. It becomes their Companion export and drives the logging screen."
-              action={<Link to="/programs"><Button variant="primary">Open program builder</Button></Link>}
+              title={t('clients.detail.noProgramTitle')}
+              body={t('clients.detail.noProgramBody')}
+              action={<Link to="/programs"><Button variant="primary">{t('clients.detail.openProgramBuilder')}</Button></Link>}
             />
           )
         )}
@@ -337,6 +393,9 @@ export default function ClientDetailPage() {
         {tab === 'nutrition' && (
           <NutritionTab client={client} units={trainer.units} />
         )}
+        {tab === 'foodlog' && (
+          <FoodLogTab client={client} />
+        )}
         {tab === 'notes' && (
           <NotesTab clientId={client.id} />
         )}
@@ -349,6 +408,7 @@ export default function ClientDetailPage() {
       </div>
 
       <EditClientDialog client={client} open={showEdit} onClose={() => setShowEdit(false)} />
+      <PrintOptionsDialog client={client} activeProgramId={activeProgram?.id} open={showPrint} onClose={() => setShowPrint(false)} />
       <WiFiSyncDialog open={showSync} onClose={() => setShowSync(false)} />
     </div>
   )

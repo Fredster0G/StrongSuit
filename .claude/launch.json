@@ -7,6 +7,28 @@
       "runtimeArgs": ["vite", "preview", "--port", "4173"],
       "cwd": "strongsuit-v0.1/strongsuit",
       "port": 4173
+    },
+    {
+      "name": "strongsuit-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5174"],
+      "cwd": "strongsuit-v0.1/strongsuit",
+      "port": 5174
+    },
+    {
+      "//": "Port 5173 specifically: electron/main.ts loads http://localhost:5173 in dev and its navigation allowlist only permits that origin.",
+      "name": "strongsuit-electron-renderer",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5173", "--strictPort"],
+      "cwd": "strongsuit-v0.1/strongsuit",
+      "port": 5173
+    },
+    {
+      "name": "companion-app-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5175"],
+      "cwd": "strongsuit-v0.1/companion-app",
+      "port": 5175
     }
   ]
 }

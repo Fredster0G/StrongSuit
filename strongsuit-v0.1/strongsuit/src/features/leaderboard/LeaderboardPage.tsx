@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Trophy, Plus, Medal } from 'lucide-react'
 import { Card, SectionHeader, Button, EmptyState, Dialog, Field, Input, Select, Tag, toast } from '@/design'
-import { clientsRepo, challengesRepo, logsRepo, metricsRepo } from '@/db/repo'
+import { clientsRepo, challengesRepo, logsRepo, metricsRepo, staffRepo, locationsRepo } from '@/db/repo'
 import type { ChallengeMetric } from '@/db/types'
 import { leaderboard, METRIC_LABELS } from '@/lib/leaderboard'
 import { fullName, today } from '@/lib/core'
@@ -90,7 +90,7 @@ function Board({ metric, start, end, participantIds, clientMap }: {
               <span className="text-sm text-ink">{c ? `${c.firstName} ${c.lastName}`.trim() : 'Unknown'}</span>
               {entry.rank === 1 && <Medal size={14} className="text-ember-600" />}
             </div>
-            <span className="font-mono tnum text-sm font-semibold text-ink">{entry.value.toLocaleString()} <span className="text-2xs font-normal text-faint">{unit}</span></span>
+            <span className="font-mono tabular-nums text-sm font-semibold text-ink">{entry.value.toLocaleString()} <span className="text-2xs font-normal text-faint">{unit}</span></span>
           </div>
         )
       })}
@@ -102,8 +102,21 @@ export default function LeaderboardPage() {
   const [newOpen, setNewOpen] = useState(false)
   const clients = useLiveQuery(() => clientsRepo.all(), [], [])
   const challenges = useLiveQuery(() => challengesRepo.all(), [], [])
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
+  const locations = useLiveQuery(() => locationsRepo.all(), [], [])
+  const [staffFilter, setStaffFilter] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
   const clientMap = new Map(clients.map(c => [c.id, c]))
   const optedIn = clients.filter(c => c.leaderboardOptIn && c.status === 'active')
+
+  // Studio scoping — a multi-location studio's leaderboard shouldn't blend
+  // clients from every coach/location by default. Challenges keep their own
+  // explicit participant list untouched — a coach curated that roster on
+  // purpose, so studio scope doesn't further narrow it.
+  const showScope = staff.length > 0 || locations.length > 0
+  const scopedIds = optedIn
+    .filter(c => (!staffFilter || c.staffId === staffFilter) && (!locationFilter || c.locationId === locationFilter))
+    .map(c => c.id)
 
   const thisMonthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
   const last30 = format(subDays(new Date(), 30), 'yyyy-MM-dd')
@@ -111,6 +124,27 @@ export default function LeaderboardPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <SectionHeader title="Leaderboards" action={<Button variant="primary" onClick={() => setNewOpen(true)}><Plus size={14} /> New challenge</Button>} />
+
+      {showScope && optedIn.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3">
+          {staff.length > 0 && (
+            <Field label="Coach">
+              <Select className="!h-8 w-44" value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+                <option value="">All coaches</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {locations.length > 0 && (
+            <Field label="Location">
+              <Select className="!h-8 w-44" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
+                <option value="">All locations</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </Select>
+            </Field>
+          )}
+        </div>
+      )}
 
       {optedIn.length === 0 ? (
         <EmptyState
@@ -122,11 +156,11 @@ export default function LeaderboardPage() {
         <>
           <div>
             <h3 className="mb-2 text-sm font-semibold text-muted">This month — total volume</h3>
-            <Board metric="volume" start={thisMonthStart} end={today()} clientMap={clientMap} />
+            <Board metric="volume" start={thisMonthStart} end={today()} clientMap={clientMap} participantIds={showScope ? scopedIds : undefined} />
           </div>
           <div>
             <h3 className="mb-2 text-sm font-semibold text-muted">Last 30 days — sessions logged</h3>
-            <Board metric="sessions" start={last30} end={today()} clientMap={clientMap} />
+            <Board metric="sessions" start={last30} end={today()} clientMap={clientMap} participantIds={showScope ? scopedIds : undefined} />
           </div>
         </>
       )}

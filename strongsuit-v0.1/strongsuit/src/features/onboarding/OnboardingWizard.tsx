@@ -1,11 +1,14 @@
-import { useState } from 'react'
-import { Check, Upload, Save, Play } from 'lucide-react'
-import { Button, Input, Label, Card } from '@/design'
+import { useEffect, useState } from 'react'
+import { Check, Save, Play, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { Button, Input, Label, Card, FileDropzone, toastError } from '@/design'
 import { trainerRepo, clientsRepo } from '@/db/repo'
 import type { Trainer, Client } from '@/db/types'
 import { newId, nowIso } from '@/lib/core'
 import { APP_NAME } from '@/lib/brand'
 import { Logomark } from '@/app/brand/Logomark'
+import { importClientPackageText } from '@/db/portability'
+import { parseCsv } from '@/lib/csv'
+import ImportCsvDialog from '@/features/clients/ImportCsvDialog'
 
 interface Props {
   trainer: Trainer
@@ -17,19 +20,46 @@ export default function OnboardingWizard({ trainer }: Props) {
     trainerName: trainer.trainerName || '',
     businessName: trainer.businessName || '',
     units: trainer.units || 'lb',
-    brandColor: trainer.brandColor || '#3b82f6',
-    logoDataUrl: trainer.logoDataUrl || ''
   })
   const [seeding, setSeeding] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importedCount, setImportedCount] = useState<number | null>(null)
+  const [csvImport, setCsvImport] = useState<{ headerRow: string[]; dataRows: string[][] } | null>(null)
+  const [storagePersisted, setStoragePersisted] = useState<boolean | null>(null)
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setForm(prev => ({ ...prev, logoDataUrl: ev.target?.result as string }))
+  useEffect(() => {
+    if (step !== 4) return
+    if (navigator.storage?.persisted) {
+      navigator.storage.persisted().then(setStoragePersisted).catch(() => setStoragePersisted(false))
+    } else {
+      setStoragePersisted(false)
     }
-    reader.readAsDataURL(file)
+  }, [step])
+
+  // Logo handling removed as it's gated for new free-tier accounts
+
+  async function handleRosterFile(file: File) {
+    const text = await file.text()
+    const isJson = file.name.toLowerCase().endsWith('.json') || text.trimStart().startsWith('{') || text.trimStart().startsWith('[')
+    setImporting(true)
+    try {
+      if (isJson) {
+        const reports = await importClientPackageText(text)
+        setImportedCount(reports.length)
+        setStep(4)
+        return
+      }
+      const rows = parseCsv(text)
+      if (rows.length < 2) {
+        toastError("That CSV doesn't have any data rows to import.")
+        return
+      }
+      setCsvImport({ headerRow: rows[0], dataRows: rows.slice(1) })
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Couldn't import that file.")
+    } finally {
+      setImporting(false)
+    }
   }
 
   async function seedDemoData() {
@@ -55,8 +85,6 @@ export default function OnboardingWizard({ trainer }: Props) {
       trainerName: form.trainerName,
       businessName: form.businessName,
       units: form.units as 'lb' | 'kg',
-      brandColor: form.brandColor,
-      logoDataUrl: form.logoDataUrl,
       onboardingComplete: true
     })
     
@@ -115,34 +143,10 @@ export default function OnboardingWizard({ trainer }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div>
-                  <Label>Brand Color</Label>
-                  <div className="flex items-center gap-3 mt-1">
-                    <input 
-                      type="color" 
-                      value={form.brandColor} onChange={e => setForm({ ...form, brandColor: e.target.value })}
-                      className="h-10 w-16 p-1 cursor-pointer bg-surface border border-line rounded"
-                    />
-                    <span className="text-sm font-mono text-faint">{form.brandColor}</span>
-                  </div>
-                </div>
-                <div>
-                  <Label>Logo</Label>
-                  <div className="mt-1 flex items-center gap-3">
-                    {form.logoDataUrl ? (
-                      <img src={form.logoDataUrl} className="w-10 h-10 rounded bg-white object-contain border border-line" />
-                    ) : (
-                      <div className="w-10 h-10 rounded bg-surface border border-line flex items-center justify-center text-muted">
-                        <Upload size={16} />
-                      </div>
-                    )}
-                    <label className="cursor-pointer text-sm font-medium text-verde-600 hover:underline">
-                      Upload
-                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                    </label>
-                  </div>
-                </div>
+              <div className="pt-2">
+                <p className="text-sm text-faint">
+                  Custom branding (logos and colors) is unlocked automatically if you ever upgrade to Coachwright Membership. 
+                </p>
               </div>
             </div>
 
@@ -157,7 +161,7 @@ export default function OnboardingWizard({ trainer }: Props) {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-ink mb-1">Demo Data</h2>
-              <p className="text-faint text-sm">Would you like to explore with sample clients?</p>
+              <p className="text-faint text-sm">Explore with sample clients, bring in your real roster, or start empty.</p>
             </div>
 
             <div className="bg-surface2 p-6 rounded-xl border border-line text-center">
@@ -169,15 +173,20 @@ export default function OnboardingWizard({ trainer }: Props) {
               <Button variant="primary" className="w-full justify-center" onClick={seedDemoData} disabled={seeding}>
                 {seeding ? 'Loading...' : 'Add Demo Data'}
               </Button>
-              <div className="mt-4">
-                <Button variant="ghost" className="w-full justify-center" onClick={() => setStep(4)}>
-                  Skip, start with an empty roster
-                </Button>
-              </div>
             </div>
 
-            <div className="pt-4 flex justify-start border-t border-line mt-6">
+            <div>
+              <Label>Or import your existing roster</Label>
+              <p className="mb-2 text-2xs text-faint">A Coachwright client-package file, or a roster CSV exported from TrueCoach, Trainerize, and similar platforms.</p>
+              <FileDropzone accept=".json,application/json,.csv,text/csv" onFile={handleRosterFile} />
+              {importing && <p className="mt-1 text-2xs text-faint">Importing…</p>}
+            </div>
+
+            <div className="pt-4 flex justify-between border-t border-line mt-6">
               <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+              <Button variant="ghost" onClick={() => setStep(4)}>
+                Skip, start with an empty roster
+              </Button>
             </div>
           </div>
         )}
@@ -206,14 +215,46 @@ export default function OnboardingWizard({ trainer }: Props) {
               </div>
             </div>
 
+            {importedCount !== null && (
+              <p className="text-sm text-verde-600">
+                {importedCount === 1 ? '1 client imported.' : `${importedCount} clients imported.`}
+              </p>
+            )}
+
+            {/* Storage-persistence check — the single guarantee that actually
+                matters for local-first data: will the browser keep it under
+                storage pressure. Informational only, never a gate — a "not
+                granted" browser still works, per Chromium/Firefox's own
+                (heuristic, no-permission-prompt) persistence model. */}
+            <div className="flex items-center gap-2 text-xs text-muted">
+              {storagePersisted === null ? (
+                <span className="text-faint">Checking storage…</span>
+              ) : storagePersisted ? (
+                <><ShieldCheck size={14} className="text-verde-600" /> Persistent storage granted — your data won't be cleared under storage pressure.</>
+              ) : (
+                <><ShieldAlert size={14} className="text-ember-600" /> Persistent storage not granted by this browser. Your data still works fully offline — regular backups matter a bit more here.</>
+              )}
+            </div>
+
             <div className="pt-4 flex justify-end gap-3 border-t border-line mt-6">
               <Button variant="ghost" onClick={() => setStep(3)}>Back</Button>
-              <Button variant="primary" onClick={complete}><Check size={16} className="mr-2" /> I understand, let's go</Button>
+              <Button variant="primary" onClick={complete}><Check size={16} className="me-2" /> I understand, let's go</Button>
             </div>
           </div>
         )}
 
       </Card>
+
+      {csvImport && (
+        <ImportCsvDialog
+          headerRow={csvImport.headerRow}
+          dataRows={csvImport.dataRows}
+          open={!!csvImport}
+          onClose={() => { setCsvImport(null); setStep(4) }}
+          activeClientCount={0}
+          hasActiveMembership={false}
+        />
+      )}
     </div>
   )
 }

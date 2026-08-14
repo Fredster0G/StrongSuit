@@ -11,7 +11,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "android:sync": "npm run build && npx cap sync android",
-    "android:open": "npx cap open android"
+    "android:open": "npx cap open android",
+    "lint:imports": "npx --yes madge@8 --circular --extensions ts,tsx src/",
+    "lint:tailwind": "eslint \"src/**/*.tsx\" --no-inline-config",
+    "verify": "tsc -b && vitest run && npm run lint:imports && npm run lint:tailwind"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
@@ -19,9 +22,10 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@fontsource/archivo": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
+    "@fontsource/inter-tight": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "@huggingface/transformers": "^4.2.0",
     "@mediapipe/tasks-vision": "^0.10.35",
     "@rolldown/binding-win32-x64-msvc": "^1.2.0",
     "cors": "^2.8.6",
@@ -36,8 +40,10 @@
     "react-dom": "^19.2.7",
     "react-router": "^8.2.0",
     "react-router-dom": "^7.18.1",
+    "tesseract.js": "^7.0.0",
     "ulid": "^3.0.2",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "zxing-wasm": "^3.1.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.2",
@@ -52,11 +58,14 @@
     "cross-env": "^10.1.0",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
+    "eslint": "^8.57.1",
+    "eslint-plugin-tailwindcss": "^3.17.1",
     "fake-indexeddb": "^6.2.5",
     "oxlint": "^1.71.0",
     "postcss": "^8.5.19",
     "tailwindcss": "^3.4.17",
     "typescript": "~6.0.2",
+    "typescript-eslint": "^8.67.0",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"
   },

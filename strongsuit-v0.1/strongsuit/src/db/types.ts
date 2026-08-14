@@ -1,6 +1,8 @@
 // ===== Coachwright data model (spec §2.4) =====
 // All entities carry id (ULID), createdAt, updatedAt (ISO strings).
 
+import type { Conflict } from '@/lib/conflict'
+
 export interface Base {
   id: string
   createdAt: string
@@ -28,6 +30,7 @@ export interface Trainer extends Base {
   syncServerUrl?: string       // URL for cloud/managed sync relay
   syncServerApiKey?: string    // API key for the cloud relay (v1.4)
   eulaAcceptedAt?: string      // ISO timestamp of when the coach accepted the EULA (v1.4)
+  seedVersion?: number         // seed DB version this app has merged (v1.6)
   // module visibility (v1.6) — hide nav sections a solo/independent coach doesn't need.
   // Absent/undefined key = visible (opt-out, not opt-in, so existing installs show everything).
   hiddenModules?: ModuleKey[]
@@ -36,12 +39,41 @@ export interface Trainer extends Base {
   // at Coachwright's hosted relay (a paid, opt-in convenience — never required).
   cloudTier?: 'local' | 'self-hosted' | 'managed'
   managedLicenseKey?: string   // the coach's key for the managed ($/mo) relay, if subscribed
+  // which brand-mark variant (spec §7.4b) shows in the sidebar header (v1.6).
+  // Absent = 'horizontal' (mark + wordmark), the default lockup. Kept as an
+  // inline union (not imported from app/brand/Logomark) so the data layer
+  // never depends on a UI module — see src/app/brand/Logomark.tsx's own
+  // `BrandMarkVariant` export for the UI-facing version of this same type.
+  sidebarLogoVariant?: 'horizontal' | 'mark' | 'monogram' | 'cw' | 'lockup'
+  // ---- edition & licence (v2, docs/plans/06-EDITIONS-PRICING.md) ----
+  // Absent = 'personal', the most restrictive edition. Deliberate: a missing or
+  // corrupt licence must never silently unlock paid features. See lib/edition.ts.
+  // Kept as an inline union so the data layer never imports a lib module.
+  edition?: 'personal' | 'independent' | 'studio'
+  /** Signed, offline-verifiable licence key. There is no activation server —
+   *  see HOW-TO-OWN-IT.md; a licence check that phones home would break the
+   *  "works if we disappear" promise. */
+  licenseKey?: string
+  /** Studio only: seats this licence grants. */
+  licensedSeats?: number
+  // ---- membership (v2, lib/membership.ts) — the $29/mo subscription,
+  // entirely separate from licenseKey above, which still means a one-time
+  // purchase and is untouched by any of this (see licence.ts's header).
+  /** The signed `CWM1.…` token from the sync server, if any. */
+  membershipToken?: string
+  /** Cached result of the last successful verify+refresh, so UI checks (like
+   *  the free-tier client cap) can be synchronous rather than re-verifying
+   *  the token on every render. Refreshed by `MembershipCard`. */
+  membershipActive?: boolean
+  /** ISO date the current membership token expires — shown to the coach so
+   *  "why did I drop to free tier" is never a mystery. */
+  membershipExpiresAt?: string
 }
 
 /** Optional nav sections a solo coach can hide (Settings → Modules). Core
  *  workflow (Today/Clients/Programs/Exercises/Logging/Settings) is never hideable. */
 export type ModuleKey =
-  | 'filmRoom' | 'calendar' | 'business' | 'team' | 'leads' | 'leaderboard' | 'sync' | 'reports'
+  | 'filmRoom' | 'calendar' | 'business' | 'team' | 'leads' | 'leaderboard' | 'sync' | 'reports' | 'science'
 
 // ---- Secure sync (spec §4.23) ----
 export interface SyncIdentity {
@@ -70,6 +102,28 @@ export type BillingModel = 'per-session' | 'monthly' | 'package'
 export type Sex = 'male' | 'female'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very' | 'extra'
 export type NutritionGoal = 'cut' | 'maintain' | 'gain'
+
+// Food Logging (v1.7)
+export interface FoodItem extends Base {
+  barcode?: string        // null if manually entered without a barcode
+  name: string
+  brand?: string
+  calories: number
+  protein: number         // grams
+  carbs: number           // grams
+  fat: number             // grams
+  servingSize?: string    // e.g. "1 bar (60g)", "100g"
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
+export interface FoodEntry extends Base {
+  clientId: string
+  date: string            // yyyy-MM-dd
+  foodItemId: string      // reference to FoodItem
+  meal: MealType
+  servings: number        // multiplier for the FoodItem's macros
+}
 
 /** Primary training goal (spec §4.21). Drives programming + nutrition mapping. */
 export type TrainingGoal =
@@ -171,6 +225,28 @@ export interface Exercise extends Base {
   cues: string[]
   isCustom: boolean
   defaultTracking: TrackingType
+  
+  // factual fields imported from Free Exercise DB (Engine A)
+  level?: string
+  force?: string
+  mechanic?: string
+  secondaryMuscles?: string[]
+  needsAuthoring?: boolean
+  hidden?: boolean // v1.6 (hides seed exercises from lists)
+}
+
+/** 
+ * Overlay for seeded exercises (spec §4.3). Coach edits to seed rows are saved here
+ * rather than in the `exercises` table, so seed updates don't clobber them.
+ * `id` is the `exerciseId`.
+ */
+export interface ExerciseOverride extends Base {
+  exerciseId: string
+  name?: string
+  cues?: string[]
+  videoLinks?: ExerciseVideoLink[]
+  equipment?: string[]
+  hidden?: boolean
 }
 
 // ---- Program structure (embedded JSON on Program.weeks) ----
@@ -228,6 +304,9 @@ export interface Program extends Base {
   startDate?: string
   progressionPolicy?: ProgressionPolicy
   sourceTemplateId?: string
+  /** Which staff member built this (Studio, v1.6) — independent of who the
+   *  client is CURRENTLY assigned to. See lib/activeStaff.ts. */
+  staffId?: string
 }
 
 export type ProgressionPolicy =
@@ -266,6 +345,9 @@ export interface SessionLog extends Base {
   entries: LogEntry[]
   sessionNotes?: string
   source: DataSource
+  /** Which staff member logged this (Studio, v1.6) — independent of who the
+   *  client is CURRENTLY assigned to. See lib/activeStaff.ts. */
+  staffId?: string
 }
 
 export interface CheckIn extends Base {
@@ -282,7 +364,7 @@ export interface CheckIn extends Base {
 
 // ---- Messaging (spec §4.19) ----
 export type MessageDirection = 'inbound' | 'outbound'
-export type MessageChannel = 'sms' | 'email' | 'whatsapp' | 'in-person' | 'other'
+export type MessageChannel = 'sms' | 'email' | 'whatsapp' | 'in-person' | 'app' | 'other'
 
 export interface CoachMessage extends Base {
   clientId: string
@@ -318,6 +400,9 @@ export interface Payment extends Base {
   type: PaymentType
   sessions?: number       // for session-credit packs
   invoiceId?: string      // links this payment to an Invoice (v1.5), optional
+  /** Which staff member collected this (Studio, v1.6) — independent of who
+   *  the client is CURRENTLY assigned to. See lib/activeStaff.ts. */
+  staffId?: string
 }
 
 // ---- Expenses (Profit Planner) ----
@@ -364,6 +449,11 @@ export interface Lead extends Base {
   stage: LeadStage
   notes?: string
   convertedClientId?: string
+  /** Which coach/location this inquiry is routed to (Studio, v1.6) — a
+   *  front-desk staffer working leads for several coaches needs to filter
+   *  to their own pipeline. Optional: an unrouted lead is fine. */
+  staffId?: string
+  locationId?: string
 }
 
 // ---- Progress photos & habits (spec §4.26, v1.5) ----
@@ -415,6 +505,9 @@ export interface Invoice extends Base {
    *  account (see docs/SERVER_STRATEGY.md §3). Coachwright never processes
    *  payments or holds card data — this just renders their link as a button. */
   paymentLink?: string
+  /** Which staff member issued this (Studio, v1.6) — independent of who the
+   *  client is CURRENTLY assigned to. See lib/activeStaff.ts. */
+  staffId?: string
 }
 
 export type CouponKind = 'percent' | 'flat'
@@ -430,6 +523,7 @@ export interface Coupon extends Base {
 export type AutomationTrigger =
   | 'no-session-days' | 'checkin-overdue-days' | 'package-low-sessions'
   | 'payment-overdue-days' | 'screening-missing'
+  | 'checkin-cadence-slipping' | 'completion-trend-declining'
 export interface AutomationRule extends Base {
   name: string
   trigger: AutomationTrigger
@@ -437,6 +531,32 @@ export interface AutomationRule extends Base {
   thresholdSessions?: number
   message: string
   active: boolean
+}
+
+// ---- Local-AI model weight cache (v2, lib/modelFetch.ts) ----
+// Deliberately NOT `extends Base` — no createdAt/updatedAt churn, and it must
+// never carry an `id` that collides with sync/backup expectations for real
+// user data. `id` is the ModelSpec id from lib/localAi.ts's registry.
+export interface ModelBlob {
+  id: string
+  blob: Blob
+  bytes: number
+  cachedAt: string
+}
+
+// ---- Semantic exercise search cache (v2, lib/embeddings.ts) ----
+// A derived index, not user data — recomputable from the exercise itself in
+// well under a second per row, so (like ModelBlob) it's excluded from
+// ALL_TABLES/backup on purpose: a backup file gaining 350 rows of 384 floats
+// each for a cache a restore should just rebuild is pure bloat, not safety.
+export interface ExerciseEmbedding {
+  exerciseId: string
+  vector: number[]
+  /** Hash of the exact text embedded (name+aliases+category+muscles+cues) —
+   *  lets a stale row from an edited custom exercise be detected and
+   *  recomputed instead of silently searched against outdated text. */
+  textHash: string
+  updatedAt: string
 }
 
 // ---- Scheduling (spec §4.11 + recurring, v1.3) ----
@@ -477,6 +597,7 @@ export interface BackupEnvelope {
     clients: Client[]
     clientNotes: ClientNote[]
     exercises: Exercise[]
+    exerciseOverrides?: ExerciseOverride[]
     programs: Program[]
     sessionLogs: SessionLog[]
     checkIns: CheckIn[]
@@ -498,5 +619,8 @@ export interface BackupEnvelope {
     invoices?: Invoice[]
     coupons?: Coupon[]
     automationRules?: AutomationRule[]
+    syncConflicts?: Conflict[]      // present since sync/conflict resolution shipped; missing from this type until now (real gap, not a new field)
+    foodItems?: FoodItem[]          // added S15 (barcode nutrition logging)
+    foodEntries?: FoodEntry[]       // added S15
   }
 }

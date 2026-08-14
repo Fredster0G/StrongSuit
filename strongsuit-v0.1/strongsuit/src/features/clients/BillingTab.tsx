@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, CreditCard, ArrowDownLeft, ArrowUpRight, Scissors, FileText, Trash2, ExternalLink } from 'lucide-react'
 import { Card, Button, Input, EmptyState, Dialog, Label, Select, Field, Stat, Tag, toast, toastError } from '@/design'
-import { paymentsRepo, clientsRepo, invoicesRepo, couponsRepo } from '@/db/repo'
+import { paymentsRepo, clientsRepo, invoicesRepo, couponsRepo, staffRepo } from '@/db/repo'
 import type { Client, Payment, PaymentType, Invoice, InvoiceLineItem, InvoiceStatus } from '@/db/types'
 import { nowIso, newId } from '@/lib/core'
 import { gymCutForClient, invoiceTotals, clientBalance } from '@/lib/business'
+import { getActiveStaffId } from '@/lib/activeStaff'
 import { format } from 'date-fns'
+import { useTranslation } from '@/lib/i18n'
 
 interface BillingTabProps {
   clientId: string
@@ -19,6 +21,7 @@ function GymCutCard({ client, payments }: { client: Client; payments: Payment[] 
   const value = client.gymCut?.value ?? 0
   const month = format(new Date(), 'yyyy-MM')
   const cutThisMonth = gymCutForClient(client, payments, month)
+  const { t } = useTranslation()
 
   const save = (nextKind: string, nextValue: number) => {
     if (nextKind === 'none' || nextValue <= 0) {
@@ -31,115 +34,118 @@ function GymCutCard({ client, payments }: { client: Client; payments: Payment[] 
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-          <Scissors size={14} /> Gym's cut
+          <Scissors size={14} /> {t('clients.billing.gymCutTitle')}
         </div>
         {client.gymCut && (
           <span className="text-2xs text-faint">
-            This month: <span className="font-mono tnum text-ember-600">−${cutThisMonth.toFixed(2)}</span>
+            {t('clients.billing.gymCutThisMonth')}<span className="font-mono tabular-nums text-ember-600">−${cutThisMonth.toFixed(2)}</span>
           </span>
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="How the facility charges">
+        <Field label={t('clients.billing.gymCutLabel')}>
           <Select value={kind} onChange={e => save(e.target.value, value || (e.target.value === 'percent' ? 20 : 0))}>
-            <option value="none">No cut — independent</option>
-            <option value="percent">Percent of this client's income</option>
-            <option value="flat-monthly">Flat fee per month</option>
+            <option value="none">{t('clients.billing.gymCutNone')}</option>
+            <option value="percent">{t('clients.billing.gymCutPercent')}</option>
+            <option value="flat-monthly">{t('clients.billing.gymCutFlat')}</option>
           </Select>
         </Field>
         {kind !== 'none' && (
-          <Field label={kind === 'percent' ? 'Percent (%)' : 'Fee ($/month)'}>
+          <Field label={kind === 'percent' ? t('clients.billing.gymCutPercentLabel') : t('clients.billing.gymCutFlatLabel')}>
             <Input
               type="number" min="0" step={kind === 'percent' ? 1 : 5}
               max={kind === 'percent' ? 100 : undefined}
               defaultValue={value || ''}
               onBlur={e => save(kind, Number(e.target.value) || 0)}
-              className="font-mono tnum"
+              className="font-mono tabular-nums"
             />
           </Field>
         )}
       </div>
       <p className="mt-2 text-2xs text-faint">
-        Counted against your real profit on the Business page — income from this client is shown before the cut, your Profit Planner sees it after.
+        {t('clients.billing.gymCutDisclaimer')}
       </p>
     </Card>
   )
 }
 
 function NewInvoiceDialog({ clientId, open, onClose }: { clientId: string; open: boolean; onClose: () => void }) {
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([{ description: '', amount: 0, qty: 1 }])
   const [couponCode, setCouponCode] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
   const [applied, setApplied] = useState<{ code: string; discountAmount: number } | null>(null)
+  const { t } = useTranslation()
 
   const totals = invoiceTotals(lineItems, applied ? { id: '', createdAt: '', updatedAt: '', code: applied.code, kind: 'flat', value: applied.discountAmount, active: true } : null)
 
   async function checkCoupon() {
     if (!couponCode.trim()) { setApplied(null); return }
     const coupon = await couponsRepo.byCode(couponCode.trim())
-    if (!coupon) { toastError(`No coupon found for "${couponCode}".`); setApplied(null); return }
-    const t = invoiceTotals(lineItems, coupon)
-    setApplied({ code: coupon.code, discountAmount: t.discountAmount })
+    if (!coupon) { toastError(t('clients.toast.noCoupon', { code: couponCode })); setApplied(null); return }
+    const t_totals = invoiceTotals(lineItems, coupon)
+    setApplied({ code: coupon.code, discountAmount: t_totals.discountAmount })
   }
 
   async function save(sendNow: boolean) {
     const clean = lineItems.filter(li => li.description.trim() && li.amount > 0)
     if (!clean.length) return
-    const t = invoiceTotals(clean, applied ? { id: '', createdAt: '', updatedAt: '', code: applied.code, kind: 'flat', value: applied.discountAmount, active: true } : null)
+    const saveTotals = invoiceTotals(clean, applied ? { id: '', createdAt: '', updatedAt: '', code: applied.code, kind: 'flat', value: applied.discountAmount, active: true } : null)
     const number = await invoicesRepo.nextNumber()
     await invoicesRepo.create({
       clientId, number, date: new Date().toISOString().slice(0, 10),
       dueDate: dueDate || undefined, lineItems: clean,
-      couponCode: applied?.code, discountAmount: t.discountAmount,
-      subtotal: t.subtotal, total: t.total, status: sendNow ? 'sent' : 'draft',
+      couponCode: applied?.code, discountAmount: saveTotals.discountAmount,
+      subtotal: saveTotals.subtotal, total: saveTotals.total, status: sendNow ? 'sent' : 'draft',
       paymentLink: paymentLink.trim() || undefined,
+      staffId: getActiveStaffId(staff) ?? undefined,
     })
-    toast(sendNow ? `Invoice #${number} sent.` : `Invoice #${number} saved as a draft.`)
+    toast(sendNow ? t('clients.toast.invoiceSent', { number }) : t('clients.toast.invoiceDraft', { number }))
     setLineItems([{ description: '', amount: 0, qty: 1 }]); setCouponCode(''); setApplied(null); setDueDate(''); setPaymentLink('')
     onClose()
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="New invoice" width={520}>
+    <Dialog open={open} onClose={onClose} title={t('clients.billing.newInvoiceTitle')} width={520}>
       <div className="space-y-3">
         <div className="space-y-2">
           {lineItems.map((li, i) => (
             <div key={i} className="grid grid-cols-[1fr_80px_90px_auto] items-end gap-2">
-              <Field label={i === 0 ? 'Description' : ''}>
-                <Input value={li.description} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, description: e.target.value } : r))} placeholder="e.g. 4-session pack" />
+              <Field label={i === 0 ? t('clients.billing.descLabel') : ''}>
+                <Input value={li.description} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, description: e.target.value } : r))} placeholder={t('clients.billing.descPlaceholder')} />
               </Field>
-              <Field label={i === 0 ? 'Qty' : ''}>
-                <Input type="number" min="1" value={li.qty ?? 1} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, qty: Number(e.target.value) || 1 } : r))} className="font-mono tnum" />
+              <Field label={i === 0 ? t('clients.billing.qtyLabel') : ''}>
+                <Input type="number" min="1" value={li.qty ?? 1} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, qty: Number(e.target.value) || 1 } : r))} className="font-mono tabular-nums" />
               </Field>
-              <Field label={i === 0 ? 'Amount' : ''}>
-                <Input type="number" min="0" step="0.01" value={li.amount || ''} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, amount: Number(e.target.value) || 0 } : r))} className="font-mono tnum" />
+              <Field label={i === 0 ? t('clients.billing.amountLabel') : ''}>
+                <Input type="number" min="0" step="0.01" value={li.amount || ''} onChange={e => setLineItems(rows => rows.map((r, j) => j === i ? { ...r, amount: Number(e.target.value) || 0 } : r))} className="font-mono tabular-nums" />
               </Field>
               <Button variant="ghost" size="sm" onClick={() => setLineItems(rows => rows.filter((_, j) => j !== i))} disabled={lineItems.length === 1}><Trash2 size={13} /></Button>
             </div>
           ))}
-          <Button size="sm" variant="ghost" onClick={() => setLineItems(rows => [...rows, { description: '', amount: 0, qty: 1 }])}><Plus size={13} /> Add line</Button>
+          <Button size="sm" variant="ghost" onClick={() => setLineItems(rows => [...rows, { description: '', amount: 0, qty: 1 }])}><Plus size={13} /> {t('clients.billing.addLineBtn')}</Button>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Coupon code" hint="optional">
+          <Field label={t('clients.billing.couponLabel')} hint={t('clients.billing.couponHint')}>
             <div className="flex gap-2">
               <Input value={couponCode} onChange={e => setCouponCode(e.target.value)} onBlur={checkCoupon} placeholder="SAVE10" />
             </div>
           </Field>
-          <Field label="Due date" hint="optional"><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></Field>
+          <Field label={t('clients.billing.dueDateLabel')} hint={t('clients.billing.couponHint')}><Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></Field>
         </div>
-        <Field label="Payment link" hint="optional — your own Stripe/Square/PayPal link">
+        <Field label={t('clients.billing.paymentLinkLabel')} hint={t('clients.billing.paymentLinkHint')}>
           <Input value={paymentLink} onChange={e => setPaymentLink(e.target.value)} placeholder="https://buy.stripe.com/…" />
         </Field>
         <div className="rounded-ctl border border-line bg-surface2 p-3 text-sm">
-          <div className="flex justify-between text-muted"><span>Subtotal</span><span className="font-mono tnum">${totals.subtotal.toFixed(2)}</span></div>
-          {totals.discountAmount > 0 && <div className="flex justify-between text-ember-600"><span>Discount ({applied?.code})</span><span className="font-mono tnum">−${totals.discountAmount.toFixed(2)}</span></div>}
-          <div className="mt-1 flex justify-between border-t border-line pt-1 font-semibold text-ink"><span>Total</span><span className="font-mono tnum">${totals.total.toFixed(2)}</span></div>
+          <div className="flex justify-between text-muted"><span>{t('clients.billing.subtotal')}</span><span className="font-mono tabular-nums">${totals.subtotal.toFixed(2)}</span></div>
+          {totals.discountAmount > 0 && <div className="flex justify-between text-ember-600"><span>{t('clients.billing.discount', { code: applied?.code })}</span><span className="font-mono tabular-nums">−${totals.discountAmount.toFixed(2)}</span></div>}
+          <div className="mt-1 flex justify-between border-t border-line pt-1 font-semibold text-ink"><span>{t('clients.billing.total')}</span><span className="font-mono tabular-nums">${totals.total.toFixed(2)}</span></div>
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="secondary" onClick={() => save(false)}>Save draft</Button>
-          <Button variant="primary" onClick={() => save(true)}>Send invoice</Button>
+          <Button variant="ghost" onClick={onClose}>{t('clients.billing.cancelBtn')}</Button>
+          <Button variant="secondary" onClick={() => save(false)}>{t('clients.billing.saveDraftBtn')}</Button>
+          <Button variant="primary" onClick={() => save(true)}>{t('clients.billing.sendInvoiceBtn')}</Button>
         </div>
       </div>
     </Dialog>
@@ -150,43 +156,44 @@ function InvoicesCard({ clientId }: { clientId: string }) {
   const [newOpen, setNewOpen] = useState(false)
   const invoices = useLiveQuery(() => invoicesRepo.forClient(clientId), [clientId], [])
   const balance = clientBalance(invoices)
+  const { t } = useTranslation()
 
   async function setStatus(inv: Invoice, status: InvoiceStatus) {
     await invoicesRepo.update(inv.id, { status })
-    toast(`Invoice #${inv.number} marked ${status}.`)
+    toast(t('clients.toast.invoiceStatus', { number: inv.number, status }))
   }
 
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink"><FileText size={16} className="text-verde-600" /> Invoices</div>
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink"><FileText size={16} className="text-verde-600" /> {t('clients.billing.invoicesTitle')}</div>
         <div className="flex items-center gap-3">
-          {balance > 0 && <Stat label="Balance owed" value={`$${balance.toFixed(2)}`} tone="ember" />}
-          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} /> New invoice</Button>
+          {balance > 0 && <Stat label={t('clients.billing.balanceOwed')} value={`$${balance.toFixed(2)}`} tone="ember" />}
+          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} /> {t('clients.billing.newInvoiceBtn')}</Button>
         </div>
       </div>
       {invoices.length === 0 ? (
-        <p className="text-xs text-muted">No invoices yet. Create one to bill for packages, assessments, or one-off charges — with an optional coupon.</p>
+        <p className="text-xs text-muted">{t('clients.billing.noInvoices')}</p>
       ) : (
         <div className="space-y-2">
           {invoices.map(inv => (
             <div key={inv.id} className="flex items-center justify-between rounded-ctl border border-line px-3 py-2">
               <div>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="font-mono tnum font-medium text-ink">#{inv.number}</span>
+                  <span className="font-mono tabular-nums font-medium text-ink">#{inv.number}</span>
                   <Tag tone={inv.status === 'paid' ? 'verde' : inv.status === 'sent' ? 'ember' : 'neutral'}>{inv.status}</Tag>
                 </div>
-                <div className="text-2xs text-faint">{inv.date}{inv.dueDate ? ` · due ${inv.dueDate}` : ''} · {inv.lineItems.length} line item{inv.lineItems.length === 1 ? '' : 's'}</div>
+                <div className="text-2xs text-faint">{inv.date}{inv.dueDate ? t('clients.billing.due', { date: inv.dueDate }) : ''} · {inv.lineItems.length}{t('clients.billing.lineItems', { s: inv.lineItems.length === 1 ? '' : 's' })}</div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-mono tnum text-sm font-semibold text-ink">${inv.total.toFixed(2)}</span>
+                <span className="font-mono tabular-nums text-sm font-semibold text-ink">${inv.total.toFixed(2)}</span>
                 {inv.status === 'sent' && inv.paymentLink && (
                   <Button size="sm" variant="secondary" onClick={() => window.open(inv.paymentLink, '_blank', 'noopener,noreferrer')}>
-                    <ExternalLink size={13} /> Pay now
+                    <ExternalLink size={13} /> {t('clients.billing.payNowBtn')}
                   </Button>
                 )}
-                {inv.status === 'sent' && <Button size="sm" variant="secondary" onClick={() => setStatus(inv, 'paid')}>Mark paid</Button>}
-                {inv.status === 'draft' && <Button size="sm" variant="secondary" onClick={() => setStatus(inv, 'sent')}>Send</Button>}
+                {inv.status === 'sent' && <Button size="sm" variant="secondary" onClick={() => setStatus(inv, 'paid')}>{t('clients.billing.markPaidBtn')}</Button>}
+                {inv.status === 'draft' && <Button size="sm" variant="secondary" onClick={() => setStatus(inv, 'sent')}>{t('clients.billing.sendBtn')}</Button>}
               </div>
             </div>
           ))}
@@ -198,6 +205,7 @@ function InvoicesCard({ clientId }: { clientId: string }) {
 }
 
 function RecordPaymentDialog({ clientId, open, onClose }: { clientId: string; open: boolean; onClose: () => void }) {
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -206,6 +214,7 @@ function RecordPaymentDialog({ clientId, open, onClose }: { clientId: string; op
     memo: '',
     sessions: ''
   })
+  const { t } = useTranslation()
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -220,7 +229,8 @@ function RecordPaymentDialog({ clientId, open, onClose }: { clientId: string; op
       type: form.type,
       method: form.method,
       memo: form.memo,
-      sessions: form.type === 'session-credit' ? parseInt(form.sessions) || 0 : undefined
+      sessions: form.type === 'session-credit' ? parseInt(form.sessions) || 0 : undefined,
+      staffId: getActiveStaffId(staff) ?? undefined,
     }
 
     await paymentsRepo.create(payment)
@@ -228,59 +238,59 @@ function RecordPaymentDialog({ clientId, open, onClose }: { clientId: string; op
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Record Transaction">
+    <Dialog open={open} onClose={onClose} title={t('clients.billing.recordTxTitle')}>
       <form onSubmit={save} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div><Label>Date *</Label><Input 
+          <div><Label>{t('clients.billing.dateLabel')}</Label><Input 
             type="date" required
             value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} 
           /></div>
           <div>
-            <Label>Type</Label>
+            <Label>{t('clients.billing.typeLabel')}</Label>
             <select 
               className="w-full bg-surface border border-line rounded px-3 py-2 text-ink mt-1"
               value={form.type} onChange={e => setForm({ ...form, type: e.target.value as PaymentType })}
             >
-              <option value="payment">Payment</option>
-              <option value="session-credit">Session Pack</option>
-              <option value="refund">Refund</option>
+              <option value="payment">{t('clients.billing.typePayment')}</option>
+              <option value="session-credit">{t('clients.billing.typeSession')}</option>
+              <option value="refund">{t('clients.billing.typeRefund')}</option>
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div><Label>Amount ($) *</Label><Input 
+          <div><Label>{t('clients.billing.amountLabelReq')}</Label><Input 
             type="number" step="0.01" required
             value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} 
           /></div>
           <div>
-            <Label>Method</Label>
+            <Label>{t('clients.billing.methodLabel')}</Label>
             <select 
               className="w-full bg-surface border border-line rounded px-3 py-2 text-ink mt-1"
               value={form.method} onChange={e => setForm({ ...form, method: e.target.value })}
             >
-              <option value="transfer">Bank Transfer / ACH</option>
-              <option value="credit">Credit Card</option>
-              <option value="cash">Cash</option>
-              <option value="other">Other</option>
+              <option value="transfer">{t('clients.billing.methodTransfer')}</option>
+              <option value="credit">{t('clients.billing.methodCredit')}</option>
+              <option value="cash">{t('clients.billing.methodCash')}</option>
+              <option value="other">{t('clients.billing.methodOther')}</option>
             </select>
           </div>
         </div>
 
         {form.type === 'session-credit' && (
-          <div><Label>Sessions included *</Label><Input 
+          <div><Label>{t('clients.billing.sessionsIncluded')}</Label><Input 
             type="number" required
             value={form.sessions} onChange={e => setForm({ ...form, sessions: e.target.value })} 
           /></div>
         )}
 
-        <div><Label>Memo (optional)</Label><Input 
+        <div><Label>{t('clients.billing.memoLabel')}</Label><Input 
           value={form.memo} onChange={e => setForm({ ...form, memo: e.target.value })} 
         /></div>
 
         <div className="pt-4 flex justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary">Save Transaction</Button>
+          <Button type="button" variant="ghost" onClick={onClose}>{t('clients.billing.cancelBtn')}</Button>
+          <Button type="submit" variant="primary">{t('clients.billing.saveTxBtn')}</Button>
         </div>
       </form>
     </Dialog>
@@ -296,6 +306,7 @@ export default function BillingTab({ clientId, client }: BillingTabProps) {
     [clientId],
     []
   )
+  const { t } = useTranslation()
 
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -304,17 +315,17 @@ export default function BillingTab({ clientId, client }: BillingTabProps) {
       {client && <div className="mb-4"><GymCutCard client={client} payments={payments} /></div>}
       <div className="mb-4"><InvoicesCard clientId={clientId} /></div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-lg">Ledger</h3>
+        <h3 className="font-semibold text-lg">{t('clients.billing.ledgerTitle')}</h3>
         <Button variant="ghost" size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus size={16} className="mr-1.5" /> Record Transaction
+          <Plus size={16} className="me-1.5" /> {t('clients.billing.recordTxBtn')}
         </Button>
       </div>
 
       {payments.length === 0 ? (
         <EmptyState 
           icon={<CreditCard size={28} strokeWidth={1.5} />}
-          title="No transactions yet" 
-          body="Record payments and session packs to keep your ledger accurate." 
+          title={t('clients.billing.noTxTitle')} 
+          body={t('clients.billing.noTxBody')} 
         />
       ) : (
         <div className="space-y-4">
@@ -327,10 +338,10 @@ export default function BillingTab({ clientId, client }: BillingTabProps) {
                   </div>
                   <div>
                     <div className="font-medium text-ink">
-                      {p.type === 'session-credit' ? 'Session Pack' : p.type === 'refund' ? 'Refund' : 'Payment'}
+                      {p.type === 'session-credit' ? t('clients.billing.typeSession') : p.type === 'refund' ? t('clients.billing.typeRefund') : t('clients.billing.typePayment')}
                     </div>
                     <div className="text-sm text-faint">
-                      {p.date} • {p.method} {p.sessions ? `• ${p.sessions} sessions` : ''}
+                      {p.date} • {p.method} {p.sessions ? `• ${p.sessions} ${t('clients.billing.sessions')}` : ''}
                     </div>
                     {p.memo && <div className="text-sm text-muted mt-1">{p.memo}</div>}
                   </div>

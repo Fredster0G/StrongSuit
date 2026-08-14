@@ -152,7 +152,7 @@ export default function BuilderOutline({
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
         {draft.weeks.map((week) => (
           <div key={week.id} className="space-y-1">
-            <div className="flex items-center justify-between group px-2 py-1 rounded-sm hover:bg-surface-elevated transition-colors">
+            <div className="flex items-center justify-between group px-2 py-1 rounded-sm hover:bg-surface2 transition-colors">
               <span className="text-sm font-semibold text-ink">{week.label}</span>
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                 <button title="Duplicate week" onClick={() => openDuplicateDialog(week)} className="text-muted hover:text-ink">
@@ -164,7 +164,7 @@ export default function BuilderOutline({
               </div>
             </div>
 
-            <div className="pl-3 border-l-2 border-line/50 ml-2 space-y-0.5">
+            <div className="ps-3 border-s-2 border-line/50 ms-2 space-y-0.5">
               {week.days.map((day) => {
                 const isActive = day.id === activeDayId
                 return (
@@ -173,15 +173,15 @@ export default function BuilderOutline({
                     onClick={() => setActiveDayId(day.id)}
                     className={`group flex items-center justify-between px-2 py-1 rounded-sm cursor-pointer transition-colors text-sm ${
                       isActive 
-                        ? 'bg-verde-100 text-verde-800 font-medium' 
-                        : 'text-muted hover:bg-surface-elevated hover:text-ink'
+                        ? 'bg-verde-100 text-verde-700 font-medium'
+                        : 'text-muted hover:bg-surface2 hover:text-ink'
                     }`}
                   >
                     <span>{day.name}</span>
                     <button 
                       title="Delete day" 
                       onClick={(e) => { e.stopPropagation(); deleteDay(week.id, day.id) }} 
-                      className={`opacity-0 group-hover:opacity-100 text-muted hover:text-ember-600 transition-opacity ${isActive ? 'hover:text-verde-800' : ''}`}
+                      className={`opacity-0 group-hover:opacity-100 text-muted hover:text-ember-600 transition-opacity ${isActive ? 'hover:text-verde-700' : ''}`}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -201,7 +201,7 @@ export default function BuilderOutline({
 
         <div className="px-2 pt-2">
           <Button variant="ghost" size="sm" onClick={addWeek} className="w-full text-faint hover:text-ink">
-            <Plus size={14} className="mr-1.5" /> Add Week
+            <Plus size={14} className="me-1.5" /> Add Week
           </Button>
         </div>
       </div>

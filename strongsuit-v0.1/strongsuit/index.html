@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Coachwright" />
+    <link rel="apple-touch-icon" href="./icon-192.svg" />
     <title>Coachwright — the coaching workstation you own</title>
     <style>
       html, body { height: 100%; margin: 0; background: #F7F6F3; }
@@ -11,17 +17,27 @@
       #boot-splash {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
       }
+      /* Badge tone swaps with OS preference so it stays legible against the
+         page background above — same reasoning as Logomark.tsx's dark: swap,
+         just done with a media query since this markup runs before Tailwind/React. */
+      #boot-splash .badge-dark { display: block; }
+      #boot-splash .badge-light { display: none; }
+      @media (prefers-color-scheme: dark) {
+        #boot-splash .badge-dark { display: none; }
+        #boot-splash .badge-light { display: block; }
+      }
     </style>
   </head>
   <body>
     <div id="root">
       <div id="boot-splash">
-        <svg width="56" height="56" viewBox="0 0 48 48" aria-hidden="true">
-          <rect width="48" height="48" rx="11" fill="#171A1E" />
-          <rect x="11" y="25" width="7" height="10" rx="1.5" fill="#F7F6F3" />
-          <rect x="21" y="19" width="7" height="16" rx="1.5" fill="#F7F6F3" />
-          <rect x="31" y="13" width="7" height="22" rx="1.5" fill="#F7F6F3" />
-          <circle cx="34.5" cy="10" r="3.6" fill="#D9730D" />
+        <svg class="badge-dark" width="56" height="56" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" fill="#171A1E" />
+          <path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#F7F6F3" transform="translate(24 24) scale(0.343) translate(-44.4 -50)" />
+        </svg>
+        <svg class="badge-light" width="56" height="56" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" fill="#F7F6F3" />
+          <path d="M 86.4 29 A 42 42 0 1 0 86.4 71 L 67.3 60 A 20 20 0 1 1 67.3 40 Z" fill="#171A1E" transform="translate(24 24) scale(0.343) translate(-44.4 -50)" />
         </svg>
       </div>
     </div>

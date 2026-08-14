@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Card, EmptyState } from '@/design'
-import { logsRepo, exercisesRepo } from '@/db/repo'
-import type { SessionLog, Exercise } from '@/db/types'
+import { Activity, DownloadCloud } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { Activity, Loader2, DownloadCloud } from 'lucide-react'
+import { Card, EmptyState, LogoSpinner } from '@/design'
+import { logsRepo, exercisesRepo } from '@/db/repo'
 import { fmtLoad, setTonnage, nowIso } from '@/lib/core'
 import { toast } from '@/design'
 import ExerciseHistoryDrawer from '../logging/ExerciseHistoryDrawer'
+import type { SessionLog, Exercise } from '@/db/types'
+import { useTranslation } from '@/lib/i18n'
 
 interface LogsTabProps {
   clientId: string
@@ -19,6 +20,7 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
   const [loading, setLoading] = useState(true)
 
   const [drawerEx, setDrawerEx] = useState<string | null>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     async function load() {
@@ -49,31 +51,31 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
           updatedAt: log.updatedAt || nowIso()
         }))
         const { applied, skipped } = await logsRepo.mergeUpsert(logsToMerge)
-        toast(`Imported ${applied} sessions (skipped ${skipped} duplicates).`)
+        toast(t('clients.toast.importedLogs', { applied, skipped }))
         // reload
         setLoading(true)
         const updated = await logsRepo.forClient(clientId)
         setLogs(updated)
         setLoading(false)
       } else {
-        toast('Invalid Companion Data file.')
+        toast(t('clients.toast.invalidCompanionFile'))
       }
     } catch (err) {
-      toast('Failed to parse file.')
+      toast(t('clients.toast.parseFailed'))
       console.error(err)
     }
   }
 
   if (loading) {
-    return <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-faint" /></div>
+    return <div className="py-12 flex justify-center"><LogoSpinner className="text-faint" size={24} /></div>
   }
 
   if (logs.length === 0) {
     return (
       <EmptyState 
         icon={<Activity size={28} strokeWidth={1.5} />}
-        title="No sessions logged yet" 
-        body="Log the first one and the charts start working for you." 
+        title={t('clients.logs.emptyTitle')} 
+        body={t('clients.logs.emptyBody')} 
       />
     )
   }
@@ -81,11 +83,11 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-lg">Session History</h3>
+        <h3 className="font-semibold text-lg">{t('clients.logs.title')}</h3>
         <div>
           <input type="file" id="import-companion" accept=".ssdata" className="hidden" onChange={handleImport} />
           <label htmlFor="import-companion" className="cursor-pointer inline-flex items-center justify-center bg-surface border border-line text-ink px-3 py-1.5 rounded-md font-medium text-sm hover:opacity-80 transition-opacity">
-            <DownloadCloud size={14} className="mr-1.5" /> Import Data
+            <DownloadCloud size={14} className="me-1.5" /> {t('clients.logs.importData')}
           </label>
         </div>
       </div>
@@ -107,20 +109,20 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
 
         return (
           <Card key={log.id} className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-line px-5 py-4 bg-iron-50 dark:bg-iron-900/20">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4 bg-surface2">
               <div>
-                <h3 className="font-bold text-ink text-lg">{log.title || 'Freestyle Session'}</h3>
+                <h3 className="font-bold text-ink text-lg">{log.title || t('clients.logs.freestyleSession')}</h3>
                 <p className="text-sm text-faint font-medium">{format(parseISO(log.date), 'EEEE, MMM d, yyyy')}</p>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-ink">{setsCompleted} sets completed</div>
-                {sessionVolume > 0 && <div className="text-xs text-muted">Vol: {fmtLoad(sessionVolume, clientUnits)}</div>}
+              <div className="text-end">
+                <div className="text-sm font-medium text-ink">{t('clients.logs.setsCompleted', { count: setsCompleted })}</div>
+                {sessionVolume > 0 && <div className="text-xs text-muted">{t('clients.logs.volume', { value: fmtLoad(sessionVolume, clientUnits) })}</div>}
               </div>
             </div>
 
             <div className="px-5 py-4 space-y-4">
               {log.entries.length === 0 ? (
-                <p className="text-faint text-sm italic">Empty session</p>
+                <p className="text-faint text-sm italic">{t('clients.logs.emptySession')}</p>
               ) : (
                 <div className="space-y-4">
                   {log.entries.map((entry, idx) => {
@@ -129,18 +131,19 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
                     return (
                       <div key={idx} className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
                         <button 
-                          className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 text-left"
+                          className="font-semibold text-verde-600 hover:text-verde-700 text-start flex items-center gap-2"
                           onClick={() => setDrawerEx(ex.id)}
                         >
-                          {ex?.name || 'Unknown Exercise'}
+                          {ex?.name || t('clients.overview.unknownExercise')}
+                          <Activity size={14} />
                         </button>
                         
                         <div className="flex flex-wrap gap-2 flex-1">
                           {doneSets.length === 0 ? (
-                            <span className="text-xs text-muted italic">Skipped</span>
+                            <span className="text-xs text-muted italic">{t('clients.logs.skipped')}</span>
                           ) : (
                             doneSets.map((s, sIdx) => (
-                              <span key={sIdx} className="inline-flex items-center rounded bg-iron-100 dark:bg-iron-800 px-2 py-0.5 text-xs font-medium text-ink">
+                              <span key={sIdx} className="inline-flex items-center rounded bg-surface2 px-2 py-0.5 text-xs font-medium text-ink">
                                 {s.actualLoad ? `${s.actualLoad} × ` : ''}{s.actualReps ?? '-'}{s.rpe ? ` @ ${s.rpe}` : ''}
                               </span>
                             ))
@@ -157,7 +160,7 @@ export default function LogsTab({ clientId, clientUnits }: LogsTabProps) {
 
               {log.sessionNotes && (
                 <div className="mt-4 pt-4 border-t border-line text-sm text-ink bg-amber-50 dark:bg-amber-950/20 p-3 rounded">
-                  <span className="font-semibold text-amber-700 dark:text-amber-500 mr-2">Note:</span>
+                  <span className="font-semibold text-amber-700 dark:text-amber-500 me-2">{t('clients.logs.note')}</span>
                   {log.sessionNotes}
                 </div>
               )}

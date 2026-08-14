@@ -455,7 +455,7 @@ Dark theme: `--bone` family swaps to `#101317 / #171B20` surfaces; jade lifts to
 Rationale: jade + porcelain + ember is unowned territory in fitness software (competitors are blue/black/neon) and reads "trustworthy instrument." **No gradients anywhere** except an optional 2%-noise texture on the app background for material feel.
 
 ### 7.2 Typography (bundled via @fontsource)
-- **Display / headings:** `Archivo` (SemiBold/Bold, slightly tightened letter-spacing at large sizes). Athletic without being sporty-cliché.
+- **Display / headings:** `Inter Tight` (700/800/900, −0.04em tracking at large sizes) — changed from Archivo (S11) to match the shipped brand-mark wordmark exactly; do not reintroduce Archivo. Confident, machined, not sporty.
 - **UI / body:** `Inter` (400/500/600).
 - **Data / numerals:** `JetBrains Mono` for all set/rep/load cells, stats, and timers — with `font-variant-numeric: tabular-nums` everywhere numbers columnize. The mono numerals are a deliberate signature: training data looks *measured*.
 - Type scale: 12 / 13 / 14 (base) / 16 / 18 / 22 / 28 / 36. Line-height 1.5 body, 1.2 headings.
@@ -471,6 +471,15 @@ Rationale: jade + porcelain + ember is unowned territory in fitness software (co
 3. **The Ember PR tag:** small square-cornered tag, ember background, mono type, e.g. `PR ▲ 5 lb`.
 4. Left-rail navigation with the client's brand color as a 3px active-item spine.
 Restraint everywhere else. Spend boldness only here.
+
+### 7.4b The brand mark & motion (shipped S11 — `src/app/brand/Logomark.tsx`)
+The mark: a barbell collar seen end-on, its mouth cut with two flat machined faces so the negative space resolves into a hard **C** — one solid form, not an outline or icon-font glyph. **Always monochrome** — ink/`#171A1E` on porcelain/`#F7F6F3`, or reversed — never tinted with jade or ember; the mark's confidence is contrast, not color. Min size 16px (mark alone) / 120px wide (full lockup); below that, the mark alone, not the lockup. It appears on a rounded-square badge (`rx=11`) everywhere in-product, matching platform app-icon convention (the standalone reference sheet's raw hero treatment uses sharp corners — that's the print/marketing variant, the in-app badge is deliberately rounded).
+
+Motion: one easing curve, everywhere the mark or wordmark move — `cubic-bezier(0.2,0,0,1)`, sharp arrival, no bounce, no overshoot. Three canonical states, registered in `tailwind.config.js` as `cw-wipe`/`cw-word`/`cw-fade`/`cw-spin`/`cw-bar`:
+- **Launch/boot** (`BootScreen.tsx`, `electron/splash.html`): the mark wipe-builds left-to-right (`cw-wipe`, 0.75s), then the wordmark slides/fades in (`cw-word`), then the tagline fades in last (`cw-fade`) — staggered, ~1.25s total.
+- **Indeterminate loading:** a continuous ring sweep (`cw-spin`, 1s linear infinite) — no gradient, no color, ink stroke on a light track.
+- **Determinate progress:** a flat bar sweep (`cw-bar`) under the mark on its badge.
+Never use a bouncy/elastic easing or a colored gradient spinner anywhere the brand mark appears — that reads as a generic template, not a machined instrument, and is the exact thing this doctrine exists to prevent.
 
 ### 7.5 Iconography & imagery
 Lucide icons (bundled), 1.5px stroke, 16/20px sizes only. No emoji in UI chrome. Client photos: uploaded dataURLs; fallback avatar = mono initials on `--verde-100` (one consistent treatment, not random pastels).

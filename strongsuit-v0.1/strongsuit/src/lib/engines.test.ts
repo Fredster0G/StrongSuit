@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { jointAngle, frameAngles, symmetryPct, depthPct, RepCounter, FocusJointPicker, type Lm } from './pose'
+import { jointAngle, frameAngles, symmetryPct, depthPct, RepCounter, FocusJointPicker, replayHistory, LandmarkSmoother, type Lm, type AngleSample, type JointName } from './pose'
 import { mifflinStJeor, nutritionPlan, ageFromBirthDate, warmupRamp, toKg } from './nutrition'
 import { readinessFromCheckIn } from './readiness'
 import { gymCutForClient, gymCutForMonth, profitPlan } from './business'
@@ -53,6 +53,119 @@ describe('pose math', () => {
     p.push({ 'Knee (L)': 95, 'Elbow (L)': 88 })
     expect(p.best()).toBe('Knee (L)')
     expect(frameAngles([]).constructor).toBe(Object)
+  })
+
+  it('focus picker ignores a joint only glimpsed through occlusion, even with a big apparent range', () => {
+    const p = new FocusJointPicker()
+    // "Elbow (L)" is genuinely, reliably tracked with a real ~90° range.
+    // "Knee (L)" is only visible 2 of 10 frames (partially blocked by
+    // equipment) but those two readings swing wildly — noise, not motion.
+    for (let i = 0; i < 8; i++) p.push({ 'Elbow (L)': i % 2 === 0 ? 160 : 70 })
+    p.push({ 'Elbow (L)': 160, 'Knee (L)': 20 })
+    p.push({ 'Elbow (L)': 70, 'Knee (L)': 175 })
+    expect(p.best()).toBe('Elbow (L)')
+  })
+
+  it('replayHistory rescues a rep that completed before the focus joint was known', () => {
+    // A full first rep (175°→90°→175°) happens before FocusJointPicker.best()
+    // clears its own warm-up — without replay, that rep is fed to nothing and
+    // is lost forever, since the live RepCounter only starts once focus exists.
+    const joint: JointName = 'Knee (L)'
+    const history: AngleSample[] = []
+    let t = 0
+    const ramp = (from: number, to: number, ms: number) => {
+      const steps = ms / 100
+      for (let i = 1; i <= steps; i++) { t += 100; history.push({ tMs: t, angles: { [joint]: from + ((to - from) * i) / steps } }) }
+    }
+    ramp(175, 90, 1000); ramp(90, 175, 1000) // rep 1 — happened during "calibration"
+    ramp(175, 90, 1000); ramp(90, 175, 1000) // rep 2 — still within the buffered window
+
+    // simulate the OLD behavior: only push live from here on (focus "just" got picked)
+    const liveOnly = new RepCounter()
+    ramp(175, 90, 1000); ramp(90, 175, 1000) // rep 3, arrives live
+    for (const s of history.slice(-20)) liveOnly.push(s.tMs, s.angles[joint]!)
+    expect(liveOnly.reps.length).toBeLessThan(3) // the old way misses reps 1 & 2 entirely
+
+    // new behavior: replay the WHOLE buffer (reps 1–3) the moment focus is known
+    const rc = new RepCounter()
+    replayHistory(rc, history, joint)
+    expect(rc.reps.length).toBe(3)
+  })
+})
+
+describe('LandmarkSmoother', () => {
+  const lm = (x: number, y: number, visibility = 1): Lm => ({ x, y, visibility })
+
+  it('smooths jitter around a held, stationary position', () => {
+    const s = new LandmarkSmoother()
+    let t = 0
+    const rawXs: number[] = []
+    const smoothedXs: number[] = []
+    // a point held at x=0.5 (e.g. paused at the bottom of a rep), with the
+    // pose model's own frame-to-frame estimation noise layered on top
+    for (let i = 0; i < 20; i++) {
+      t += 33
+      const noisy = 0.5 + (i % 2 === 0 ? 0.05 : -0.05)
+      rawXs.push(noisy)
+      smoothedXs.push(s.smooth([lm(noisy, 0.5)], t)[0].x)
+    }
+    const range = (vals: number[]) => Math.max(...vals) - Math.min(...vals)
+    // ignore the first couple of samples (filter still warming up) and
+    // compare steady-state jitter amplitude
+    expect(range(smoothedXs.slice(6))).toBeLessThan(range(rawXs.slice(6)))
+  })
+
+  it('passes an unseen point through raw on first sighting (nothing to blend toward yet)', () => {
+    const s = new LandmarkSmoother()
+    const out = s.smooth([lm(0.42, 0.73, 0.9)], 0)[0]
+    expect(out.x).toBe(0.42)
+    expect(out.y).toBe(0.73)
+  })
+
+  it('passes a below-gate (not visible) point through completely unmodified', () => {
+    const s = new LandmarkSmoother()
+    s.smooth([lm(0.1, 0.1, 0.9)], 0) // establish history
+    const out = s.smooth([lm(0.99, 0.99, 0.3)], 33)[0] // now occluded, wildly different position
+    expect(out.x).toBe(0.99)
+    expect(out.y).toBe(0.99)
+  })
+
+  it('holds close to the last trusted position when a point re-appears at low confidence', () => {
+    const s = new LandmarkSmoother()
+    // establish a stable, trusted position
+    s.smooth([lm(0.2, 0.2, 0.95)], 0)
+    const held = s.smooth([lm(0.2, 0.2, 0.95)], 33)[0]
+    // next frame: same landmark index reports a wildly different position,
+    // but only just above the visibility gate (equipment-occlusion noise)
+    const noisy = s.smooth([lm(0.9, 0.9, 0.52)], 66)[0]
+    // should land much closer to the held position than to the noisy reading
+    const distToHeld = Math.hypot(noisy.x - held.x, noisy.y - held.y)
+    const distToNoisy = Math.hypot(noisy.x - 0.9, noisy.y - 0.9)
+    expect(distToHeld).toBeLessThan(distToNoisy)
+  })
+
+  it('catches back up to a genuinely new position once confidence returns, not stuck on the old one', () => {
+    const s = new LandmarkSmoother()
+    s.smooth([lm(0.2, 0.2, 0.95)], 0)
+    s.smooth([lm(0.2, 0.2, 0.95)], 33)
+    s.smooth([lm(0.9, 0.9, 0.52)], 66) // brief occlusion blip
+    // several clearly-visible frames at the new position — a real recovery,
+    // not judged after a single sample (the 1€ filter has some inherent lag
+    // on a big jump by design, that's not a bug)
+    let last = { x: 0, y: 0 }
+    let t = 66
+    for (let i = 0; i < 10; i++) { t += 33; last = s.smooth([lm(0.9, 0.9, 0.95)], t)[0] }
+    expect(Math.abs(last.x - 0.9)).toBeLessThan(0.05)
+  })
+
+  it('reset() clears filter/history state for every landmark', () => {
+    const s = new LandmarkSmoother()
+    s.smooth([lm(0.2, 0.2, 0.95)], 0)
+    s.reset()
+    const out = s.smooth([lm(0.7, 0.7, 0.95)], 1000)[0]
+    // right after reset, this is effectively a fresh sighting — passes through raw
+    expect(out.x).toBe(0.7)
+    expect(out.y).toBe(0.7)
   })
 })
 

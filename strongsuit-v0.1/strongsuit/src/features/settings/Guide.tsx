@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import {
   BookOpen, ChevronDown, Rocket, Users, ClipboardList, PenLine,
   Clapperboard, Apple, Gauge, Wallet, Smartphone, ShieldCheck, Keyboard, Lock,
+  CalendarDays, Cloud,
 } from 'lucide-react'
 import { Card, Kbd } from '@/design'
 import { APP_NAME } from '@/lib/brand'
@@ -14,9 +15,9 @@ function Section({ icon, title, children, defaultOpen }: {
       <summary className="flex cursor-pointer list-none items-center gap-2.5 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
         <span className="text-verde-600">{icon}</span>
         {title}
-        <ChevronDown size={16} className="ml-auto text-faint transition-transform group-open:rotate-180" />
+        <ChevronDown size={16} className="ms-auto text-faint transition-transform group-open:rotate-180" />
       </summary>
-      <div className="space-y-2 pb-4 pl-[26px] text-sm leading-relaxed text-muted">{children}</div>
+      <div className="space-y-2 pb-4 ps-[26px] text-sm leading-relaxed text-muted">{children}</div>
     </details>
   )
 }
@@ -51,10 +52,10 @@ export default function Guide() {
       <div>
         <Section icon={<Rocket size={16} />} title="The big idea (read this first)" defaultOpen>
           <p>
-            {APP_NAME} is a coaching workstation you <B>own</B>. There is no account, no login, no cloud, and no subscription. Every client, program, and session lives in this browser on this device — which is why your data is private and your cost is zero after you buy it.
+            {APP_NAME} is a local-first coaching workstation. There is no required account and no forced login — free covers up to 3 clients, genuinely, no trial clock. Coachwright Membership ($29/mo) removes that cap. Whichever tier you're on, every client, program, and session lives in this browser on this device by default, which is why your data stays private either way.
           </p>
           <p>
-            The one trade-off: because nothing syncs to a server, <B>you are responsible for backups</B>. That is one click (see “Back up &amp; move machines”). Do it weekly and you are safe.
+            The one trade-off of staying fully local: <B>you are responsible for backups</B>, and there’s no real-time link to a client’s phone. That’s one click for backups (see “Back up &amp; move machines”) — do it weekly and you’re safe. If you want live sync or messaging instead, that’s an optional add-on, never a requirement — see “Cloud sync” below.
           </p>
         </Section>
 
@@ -62,6 +63,7 @@ export default function Guide() {
           <Steps items={[
             <>In <B>Settings → Brand kit</B>, set your business name, your name, units, and theme. Your brand shows on Companion files and printed docs.</>,
             <>Open <B>Clients → New client</B>. Name and start date are all you need to begin; goals and injuries can come later.</>,
+            <>Migrating from another platform? <B>Clients → Import clients</B> takes a roster CSV exported from TrueCoach, Trainerize, My PT Hub, or a plain spreadsheet — map columns once, preview, import. It also accepts a {APP_NAME} client-package file for moving between two installs.</>,
             <>Injuries you enter show as an <B>amber ribbon</B> on the client and inside the program builder, so you never miss a limitation.</>,
             <>Archive clients you’re not training (their history is kept). Permanent delete lives in <B>Settings → Danger zone</B>, behind a typed confirmation.</>,
           ]} />
@@ -84,6 +86,15 @@ export default function Guide() {
           <p>
             Tap any exercise to open its <B>history drawer</B>: last five performances, an e1RM trend, a <B>Suggested next</B> load with the reasoning behind it, and a percent-based warm-up ramp.
           </p>
+          <p>
+            The <B>Printer icon</B> on a client’s page opens their printable documents — a <B>Progress Report</B> stats sheet, PAR-Q+ intake, message digest, and the current program — all generated from what’s already logged, no extra data entry.
+          </p>
+        </Section>
+
+        <Section icon={<CalendarDays size={16} />} title="Calendar & scheduling">
+          <p>
+            <B>Calendar</B> shows a real month grid — click a day to see and add appointments, or switch to <B>List</B> view for a scrollable agenda. Sessions link back to the client they’re for.
+          </p>
         </Section>
 
         <Section icon={<Clapperboard size={16} />} title="Film Room — full walkthrough">
@@ -98,7 +109,19 @@ export default function Guide() {
             <><B>Measure.</B> <B>Line</B> draws a bar path or back angle (two clicks). <B>Angle</B> measures a joint (three clicks — the middle click is the joint).</>,
           ]} />
           <p className="mt-2">
-            <B>Track movement</B> turns on the AI: a live skeleton, joint angles, and a readout of reps, tempo (down/up seconds), depth as a % of range, and left/right symmetry %. Play through a few reps and it calibrates itself and picks the working joint automatically. The first time you turn it on it loads the tracking model from inside the app (a moment on slow machines) — after that it’s instant, and always offline.
+            <B>Track movement</B> turns on the AI: a live skeleton, joint angles, and a readout of reps, tempo (down/up seconds), depth as a % of range, and left/right symmetry %. Play through a few reps and it calibrates itself and picks the working joint automatically — reps completed during that calibration window are replayed back in, so nothing early gets silently dropped. Position tracking is smoothed and visibility-weighted, so a hand or the seat of a machine briefly crossing in front of a joint doesn’t throw off the skeleton the way it used to. The first time you turn it on it loads the tracking model from inside the app (a moment on slow machines) — after that it’s instant, and always offline.
+          </p>
+          <p>
+            When two videos are <B>locked</B>, they’re continuously re-aligned during playback (not just at the moment you scrub), so they stay in step instead of drifting apart over a long clip.
+          </p>
+          <p>
+            Under the live stats you get a <B>rep-by-rep table</B> — bottom angle, down/up tempo and depth for every rep, with the ones that drift off the set’s own average marked. That’s usually where the useful coaching is: not the last rep, but the rep where depth started falling off.
+          </p>
+          <p>
+            <B>Notes</B> let you drop a timestamped comment at any point in the clip — click a note to jump straight back to that moment. <B>Snapshot PNG</B> saves the frame you’re looking at with the skeleton and bar path drawn on it — the image to actually send someone. Once you’ve tracked a rep or two, the <B>Summary</B> panel turns the session’s stats and notes into a <B>Copy</B>-able or <B>Download</B>-able plain-language write-up, a printable <B>stats sheet</B>, or a one-click <B>Send to client</B> if the client is set up to receive messages.
+          </p>
+          <p>
+            Clients running the <B>Companion</B> app have their own cut-down version of this for filming themselves — free, on their phone, no coach needed. Their video never leaves their device; if they send you anything it’s the text summary only.
           </p>
         </Section>
 
@@ -132,6 +155,23 @@ export default function Guide() {
           </p>
         </Section>
 
+        <Section icon={<Cloud size={16} />} title="Cloud sync — optional, in three flavors">
+          <p>
+            {APP_NAME} works completely offline by default. If you want more than the file-based Companion workflow — live sync between your own devices, or live messaging with clients over the internet — <B>Settings → Cloud</B> offers three honest tiers, and every feature that needs one explains exactly why it’s unavailable if you haven’t turned it on:
+          </p>
+          <Steps items={[
+            <><B>Fully local</B> (the default, free forever) — nothing leaves this device. Move data between your own machines with a backup file or a paired WiFi/LAN transfer.</>,
+            <><B>Self-hosted relay</B> (free — you run the server) — run the small open-source Coachwright relay yourself, then set its URL on the <B>Studio Link</B> page, for always-on sync and messaging from anywhere.</>,
+            <><B>Managed by us</B> ($15/mo) — we run the relay for you, zero setup. Same end-to-end encryption as self-hosting; we can’t read your data either way. Cancel any time and everything keeps working fully offline.</>,
+          ]} />
+          <p>
+            Either relay tier unlocks the <B>Live</B> panel on a client’s Messages tab (once that client is paired as a device via Studio Link) and server-side reminders. A saved server URL is ignored while the tier selector is set back to fully local — switching tiers is always the source of truth, not just having a URL saved.
+          </p>
+          <p>
+            <B>Scheduled reminders.</B> On a paired client’s <B>Messages</B> tab you can queue a reminder for a date and time — “bring your lifting shoes Thursday”, “your block ends this week”. It’s encrypted with that client’s pairing key before it leaves, so the relay is holding something it can’t read on a timer. One honest limitation: it reaches them the next time they <em>open</em> Companion after that time, not at that exact minute — it’s a nudge, not a locked-phone alarm. Anything not yet delivered is listed underneath and can be cancelled.
+          </p>
+        </Section>
+
         <Section icon={<ShieldCheck size={16} />} title="Back up & move machines">
           <Steps items={[
             <><B>Back up now</B> (below) saves one file with everything in it. Add a passphrase to encrypt it — but there’s no recovery, so store the passphrase safely.</>,
@@ -152,7 +192,13 @@ export default function Guide() {
 
         <Section icon={<Lock size={16} />} title="Privacy & how it works">
           <p>
-            There is no server to breach because there is no server. The app is static files; your data sits in this browser’s storage. The movement-tracking AI is an open-source model bundled inside the app — it runs on your device with <B>no API keys and no network calls</B>. The only time anything leaves is when <B>you</B> choose to: downloading a backup, exporting a Companion file, or opening an exercise video link you added.
+            By default there is no server to breach because there is no server. The app is static files; your data sits in this browser’s storage. The movement-tracking AI is an open-source model bundled inside the app — it runs on your device with <B>no API keys and no network calls</B>. The only time anything leaves is when <B>you</B> choose to: downloading a backup, exporting a Companion file, opening an exercise video link you added, or turning on optional cloud sync.
+          </p>
+          <p>
+            If you do turn on self-hosted or managed sync (see “Cloud sync” above), everything sent through it is end-to-end encrypted on this device before it ever leaves — the relay, ours or yours, only ever handles ciphertext it can’t read.
+          </p>
+          <p>
+            {APP_NAME} also installs as an offline app: after the first load it keeps working with no connection at all, including the movement tracking. For the full ownership picture — where the data physically lives, how to get all of it out, and exactly what keeps working if we disappear — see <B>HOW-TO-OWN-IT.md</B>, included with the app.
           </p>
         </Section>
       </div>

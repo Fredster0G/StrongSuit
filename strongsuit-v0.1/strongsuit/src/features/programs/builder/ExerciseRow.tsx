@@ -98,7 +98,7 @@ export default function ExerciseRow({
         <div 
           {...attributes} 
           {...listeners} 
-          className="w-8 flex-none bg-surface-elevated border-r border-line flex items-center justify-center cursor-grab active:cursor-grabbing text-faint hover:text-ink"
+          className="w-8 flex-none bg-surface2 border-e border-line flex items-center justify-center cursor-grab active:cursor-grabbing text-faint hover:text-ink"
         >
           <GripVertical size={14} />
         </div>

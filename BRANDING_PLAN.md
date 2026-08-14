@@ -56,8 +56,9 @@ This is verifiable (no network calls; auditable Companion files) — invite the 
 
 Extends Ironworks (spec §7): jade `#155E4E` + porcelain `#F7F6F3` + ember `#D9730D`. Competitors are blue/black/neon — jade + porcelain is unowned territory and reads "trustworthy instrument."
 
-- **Logo direction:** wordmark in Archivo SemiBold, tightened; optional mark = a "C" formed from a barbell-sleeve cross-section (an open ring / collar seen end-on) — machined, not sporty. The collar/"wright's tool" motif reinforces the craftsman story. No swooshes, no flames, no flexing silhouettes.
-- **Marketing typography:** Archivo (display) + Inter (body) + JetBrains Mono for every number that appears in marketing (prices, comparisons, stats) — the mono-numeral signature carries from product to promo.
+- **Logo (shipped, S11):** the mark is a "C" formed from a barbell collar seen end-on, its mouth cut with two flat machined faces so the negative space resolves into a hard C — one solid form, not an outline. Machined, not sporty; no swooshes, no flames, no flexing silhouettes. **The mark itself is monochrome-only, always** — absolute black/ink on white/porcelain, or reversed. No jade/ember accent ever touches the mark; the confidence is in the contrast, not color. (Jade/ember stay exactly where they already are: the product's UI chrome, charts, and tags — Ironworks isn't changing, only the mark's own rule is stricter than the rest of the system.) Canonical source: `src/app/brand/Logomark.tsx` (in-product) and the brand-mark reference sheet covering construction, clearspace, min size (16px mark / 120px full lockup), and motion. Wordmark now sets in **Inter Tight** (see typography below), not Archivo.
+- **Marketing typography:** Inter Tight 800 weight (display/wordmark, −0.04em tracking) + Inter (body) + JetBrains Mono for every number that appears in marketing (prices, comparisons, stats) and for all uppercase mono labels/eyebrows — the mono-numeral signature carries from product to promo. (Changed from Archivo→Inter Tight in S11 to match the shipped in-product display font exactly; do not mix the two.)
+- **Motion doctrine (new, S11):** one easing curve everywhere the mark or wordmark move — `cubic-bezier(0.2,0,0,1)`, sharp arrival, zero overshoot/bounce. Three canonical states: a continuous ring-sweep for indeterminate loading, a left-to-right wipe-build of the mark + a staggered wordmark fade-in for app launch/splash (`cw-wipe`→`cw-word`→`cw-fade`, ~1.25s total), and a determinate bar for known-progress waits. Never use a bouncy/elastic easing or a gradient-filled spinner on anything wearing this brand — that reads as generic, not as a machined instrument.
 - **Photography/art:** real gym environments in natural light, chalk and steel textures; screenshots always in the porcelain UI on subtle noise backgrounds. Never stock "smiling trainer with clipboard."
 - **Banned in marketing (mirrors spec §0):** gradients on purple/indigo, glassmorphism, emoji-as-icons, AI-looking hero illustrations, confetti.
 
@@ -97,7 +98,7 @@ Fair-play rule: never claim live chat or *hosted* cloud sync as a default — th
 
 ## 9. Launch asset checklist
 
-- [ ] Wordmark + mark (SVG, jade/ink/porcelain variants)
+- [x] Wordmark + mark (SVG, ink/porcelain monochrome variants only — see §4) — shipped S11 across the app (sidebar, EULA, onboarding, boot screen, favicon, Electron splash)
 - [ ] Landing page w/ savings calculator + 90-second product film (keyboard-driven builder → Companion export → phone)
 - [ ] Film Room demo clip (side-by-side squat comparison with angle overlay — the "whoa" moment)
 - [ ] Comparison pages ×3 (TrueCoach / Trainerize / Everfit)

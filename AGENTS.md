@@ -1,0 +1,122 @@
+# AGENTS.md — how to work on Coachwright
+
+Read by any AI coding tool (Claude Code, Antigravity/Gemini, Cursor, …). `CLAUDE.md` points here so
+there is exactly one protocol, not one per tool. **Caleb switches tools mid-project on purpose** — this
+file is what makes stopping in one and resuming in the other safe.
+
+---
+
+## 1. Read this much, and no more
+
+| When | Read | Cost |
+|---|---|---|
+| **Every session, first thing** | `docs/STATUS.md` | ~120 lines |
+| Picking what to do | `docs/ROADMAP.md` | ~200 lines |
+| Before touching anything | `docs/DEBT.md` (skim for your area) | ~120 lines |
+| Deep context on one subsystem | that subsystem's `docs/*.md` | varies |
+
+**Do NOT read `PROGRESS.md` front-to-back.** It is a 380-line *archive* of sessions S1–S15, and several
+entries are single 5,000-character paragraphs. It is kept for history and is no longer appended to.
+Grep it when you need the story behind a specific decision; never load it wholesale.
+
+## 2. Where things live (one canonical copy — this was violated and caused a real bug)
+
+```
+StrongSuit/                        ← repo root
+  AGENTS.md   CLAUDE.md            ← this protocol
+  PROGRESS.md  HANDOFF_SONNET.md   ← FROZEN ARCHIVES. Do not edit. Do not append.
+  PRODUCT_OVERVIEW.md              ← marketing/positioning source of truth
+  strongsuit-v0.1/strongsuit/      ← THE APP. All code + all live docs.
+    docs/STATUS.md                 ← current state (read first)
+    docs/ROADMAP.md                ← what's left, prioritized, with tool routing
+    docs/DEBT.md                   ← open debts only, unique ids
+    docs/sessions/S##-slug.md      ← append-only session logs, one small file each
+  strongsuit-v0.1/sync-server/     ← the relay + Stripe billing (separate npm project)
+  companion-app/                   ← the client-facing PWA (separate npm project)
+```
+
+**Rule:** live docs live in `strongsuit-v0.1/strongsuit/docs/` **only**. Root-level `PROGRESS.md` and
+`HANDOFF_SONNET.md` used to be duplicated into the app dir and **silently diverged** — by S15 the two
+copies disagreed about what had shipped. Never recreate that pattern. If you need a root-level pointer,
+make it a pointer, not a copy.
+
+## 3. Session protocol
+
+**On start**
+1. Read `docs/STATUS.md`.
+2. Check its "Baton" section — what the previous tool left half-done, and what not to touch.
+3. Confirm the tree is clean-ish: `git status`, `npx tsc -b --force`, `npx vitest run`.
+
+**On finish (all four, every time — even a 20-minute session)**
+1. Write `docs/sessions/S##-slug.md` — a **new file**, never an edit to an existing one.
+2. Update `docs/STATUS.md` in place (it is the only file that gets rewritten).
+3. Add any new debt to `docs/DEBT.md` with the next free id. **Never reuse an id.**
+4. Re-run `npx tsc -b --force` + `npx vitest run` and put the real numbers in the session file.
+
+Session files are capped at **~60 lines**. If yours is longer, you are writing narrative — cut it. The
+format is in `docs/sessions/TEMPLATE.md`.
+
+## 4. Verification bar (this project's actual standard — do not lower it)
+
+### ⚠️ `npx tsc --noEmit` at the repo root checks ZERO files. Use `npx tsc -b --force`.
+
+Discovered S15, the hard way: the app's root `tsconfig.json` is a **solution file** — `"files": []` with
+only `references` to `tsconfig.app.json`/`tsconfig.node.json`. Running plain `tsc --noEmit` against it
+(no `-b`) compiles nothing and reports zero errors, **always**, regardless of what's actually broken.
+Every "clean typecheck" claimed against the app in every session before this one — including within this
+same session, before this was caught — was a false negative.
+
+The real check surfaced **265 genuine compile errors** the moment it was run correctly, including: a
+100+-line duplicate-key/wrongly-nested block in the i18n catalogue that broke the entire translation type
+system app-wide; a component (`WiFiSyncDialog.tsx`) with a module-scope handler referencing component-local
+variables that don't exist at that scope (dead code, never reachable, sat unnoticed for an unknown number
+of sessions); several `t`-shadowed-by-a-local-variable bugs where a translated string silently tried to
+call a data object instead of the translator; and calls to repo methods (`.add()`, `.delete()`) that were
+never defined. **None of this showed up in any session's reported "clean typecheck" until build mode was
+used.** If a "clean typecheck" is ever claimed again from a bare `tsc --noEmit` at the app root, distrust
+it and re-run with `-b --force`.
+
+`sync-server/` and `companion-app/` are separate npm projects with their own plain (non-solution)
+`tsconfig.json` — `npx tsc --noEmit` from *inside* those directories is fine and always has been. This
+issue is specific to the app root's project-reference setup.
+
+This codebase has a consistent, unusually high bar otherwise. Match it:
+
+- **Verify before building.** Every local-AI feature was proven against a real model in a standalone
+  script *before* app code was written. Twice that caught a wrong assumption (a model size that only
+  matched one quantization; an image that was silently corrupted).
+- **Live-verify UI, don't assume.** Run the dev server, read the console, click the thing. Several
+  "working" features in this project's history were broken in ways only a live click revealed
+  (`DayCanvas`'s Add Exercise silently no-op'd for every user, desktop and mobile, for multiple sessions).
+- **Report honestly.** If a thing is unmeasured, say "unmeasured," not "works." The existing docs do
+  this everywhere and it is why they are trustworthy. Fabricated confidence is the one unrecoverable
+  mistake here.
+- **Tests are pure-logic-first.** Every `lib/*.ts` with real logic has a `lib/*.test.ts`. I/O glue is
+  verified live instead. Follow the existing split.
+
+## 5. Landmines — read before touching these
+
+| Area | Why it bites |
+|---|---|
+| `lib/licence.ts`, `lib/membership.ts`, `sync-server/membershipTokens.ts` | Token signing is **byte-exact across two independent implementations**. Change the claim order or encoding in one and every issued token silently fails to verify. There are tests, but the app-side and server-side agreement is only proven by cross-checking a real minted token. |
+| `features/sync/` + `lib/sync/` | E2EE. Keying is asymmetric and subtle (messages key by one id, reminders by another — see DEBT-56). "Harmonising" them breaks real pairings. |
+| `electron/` | Packaging has burned two sessions. Orphaned `node.exe` processes hold file locks and produce `EPERM` failures that look like antivirus. Always `Get-Process node,electron` before a build. |
+| Tailwind classes | **Systemic recurring bug (DEBT-20).** Undefined classes silently no-op instead of erroring. Every model writing classes from memory reintroduces them. Grep `tailwind.config.js` before using any color/shadow/animation class you did not just look up. |
+| `trainerRepo.getOrCreate()` | First-boot race, fixed twice, observed live again once. Single-flighted now. Don't "simplify" it. |
+
+## 6. House style
+
+- Comments explain **why**, not what. Look at `lib/licence.ts`'s header for the register — it explains a
+  business promise and names the test that enforces it.
+- Match surrounding comment density. This codebase is heavily commented **at decision points** and bare
+  elsewhere. Don't uniformly comment everything.
+- Brand strings come from `lib/brand.ts`. Never hardcode "Coachwright" in a component.
+- Prefer honest UI copy that explains *why* something is unavailable over hiding it.
+
+## 7. Do not do these without asking Caleb
+
+- Spend real money, use real Stripe keys, or deploy anything.
+- Delete data, force-push, or rewrite git history.
+- Change the pricing model, the brand promise, or anything in `PRODUCT_OVERVIEW.md` §8.
+- Add a dependency over ~10MB, or any dependency that phones home at runtime.
+- Mark a roadmap item done that you could not verify.

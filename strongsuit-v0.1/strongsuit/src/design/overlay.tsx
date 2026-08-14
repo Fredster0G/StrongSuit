@@ -52,7 +52,7 @@ export const toastError = (text: string) => useToastStore.getState().push({ text
 export function Toaster() {
   const toasts = useToastStore(s => s.toasts)
   return (
-    <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div aria-live="polite" className="pointer-events-none fixed bottom-4 end-4 z-50 flex flex-col gap-2">
       {toasts.map(t => (
         <div
           key={t.id}
@@ -96,7 +96,7 @@ export function Table({ head, children }: { head: ReactNode; children: ReactNode
     <div className="overflow-x-auto rounded-card border border-line bg-surface">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-line text-left text-2xs font-medium uppercase tracking-wide text-faint [&>th]:px-3 [&>th]:py-2">
+          <tr className="border-b border-line text-start text-2xs font-medium uppercase tracking-wide text-faint [&>th]:px-3 [&>th]:py-2">
             {head}
           </tr>
         </thead>

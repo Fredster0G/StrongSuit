@@ -1,26 +1,36 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, Calendar as CalendarIcon, Clock, MapPin, User, Repeat, CalendarClock, X } from 'lucide-react'
-import { Card, Button, Input, Select, EmptyState, Dialog, Label, Tag, toast } from '@/design'
-import { appointmentsRepo, clientsRepo } from '@/db/repo'
-import type { Appointment, RecurrenceFreq } from '@/db/types'
+import {
+  Plus, Calendar as CalendarIcon, Clock, MapPin, User, Repeat, CalendarClock, X,
+  ChevronLeft, ChevronRight, List, LayoutGrid,
+} from 'lucide-react'
+import { Card, Button, Input, Select, EmptyState, Dialog, Label, Tag, Field, toast } from '@/design'
+import { appointmentsRepo, clientsRepo, staffRepo, locationsRepo } from '@/db/repo'
+import type { Appointment, RecurrenceFreq, Client, Staff, Location } from '@/db/types'
 import { nowIso, newId, fullName } from '@/lib/core'
 import { expandAll, describeRule, type Occurrence } from '@/lib/schedule'
-import { format, parseISO, addDays } from 'date-fns'
+import {
+  format, parseISO, addDays, addMonths, startOfMonth, endOfMonth,
+  startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay,
+} from 'date-fns'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function NewAppointmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NewAppointmentDialog({ open, onClose, staff, locations }: { open: boolean; onClose: () => void; staff: Staff[]; locations: Location[] }) {
   const clients = useLiveQuery(() => clientsRepo.active(), [], [])
   const [form, setForm] = useState({
     title: '', clientId: '', date: new Date().toISOString().split('T')[0],
-    time: '09:00', durationMinutes: '60', location: '', notes: '',
+    time: '09:00', durationMinutes: '60', location: '', locationId: '', staffId: '', notes: '',
     repeat: 'none' as 'none' | RecurrenceFreq,
     ends: 'never' as 'never' | 'on' | 'after',
     until: '', count: '8',
     weekdays: [] as number[],
   })
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }))
+  // Once a studio has real locations, new appointments use the structured
+  // reference instead of typing the same address in every time — the free-
+  // text field stays for a solo trainer with nothing to structure yet.
+  const hasStructuredLocations = locations.length > 0
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -33,7 +43,10 @@ function NewAppointmentDialog({ open, onClose }: { open: boolean; onClose: () =>
       title: form.title || 'Session',
       clientId: form.clientId || undefined,
       start: startObj.toISOString(), end: endObj.toISOString(),
-      location: form.location, notes: form.notes, status: 'scheduled',
+      location: hasStructuredLocations ? undefined : form.location,
+      locationId: hasStructuredLocations ? (form.locationId || undefined) : undefined,
+      staffId: form.staffId || undefined,
+      notes: form.notes, status: 'scheduled',
     }
     if (form.repeat !== 'none') {
       appt.seriesId = id
@@ -66,8 +79,26 @@ function NewAppointmentDialog({ open, onClose }: { open: boolean; onClose: () =>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div><Label>Duration (min)</Label><Input type="number" required value={form.durationMinutes} onChange={e => set('durationMinutes', e.target.value)} /></div>
-          <div><Label>Location</Label><Input value={form.location} onChange={e => set('location', e.target.value)} /></div>
+          <div>
+            <Label>Location</Label>
+            {hasStructuredLocations ? (
+              <Select value={form.locationId} onChange={e => set('locationId', e.target.value)}>
+                <option value="">— unassigned —</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </Select>
+            ) : (
+              <Input value={form.location} onChange={e => set('location', e.target.value)} />
+            )}
+          </div>
         </div>
+        {staff.length > 0 && (
+          <Field label="Coach" hint="optional">
+            <Select value={form.staffId} onChange={e => set('staffId', e.target.value)}>
+              <option value="">— unassigned —</option>
+              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </Field>
+        )}
 
         {/* Recurrence */}
         <div className="rounded-card border border-line p-3">
@@ -142,6 +173,7 @@ function RescheduleDialog({ occ, onClose }: { occ: Occurrence | null; onClose: (
       await appointmentsRepo.update(master.id, { exceptions: [...(master.exceptions ?? []), occ.date] })
       await appointmentsRepo.create({
         title: master.title, clientId: master.clientId, location: master.location, notes: master.notes,
+        locationId: master.locationId, staffId: master.staffId,
         seriesId: master.seriesId ?? master.id, status: 'scheduled',
         start: newStart.toISOString(), end: newEnd.toISOString(),
       })
@@ -170,25 +202,147 @@ function RescheduleDialog({ occ, onClose }: { occ: Occurrence | null; onClose: (
   )
 }
 
+/** One appointment's full card — time, title, client, location, actions.
+ *  Shared by the list view's day groups and the month view's selected-day panel. */
+function OccurrenceCard({ o, client, staffMember, locationName, onReschedule, onSkip, onDelete }: {
+  o: Occurrence
+  client?: Client
+  staffMember?: Staff
+  locationName?: string
+  onReschedule: (o: Occurrence) => void
+  onSkip: (o: Occurrence) => void
+  onDelete: (o: Occurrence) => void
+}) {
+  const locationLabel = locationName ?? o.appointment.location
+  return (
+    <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-4">
+        <div className="pt-1 text-verde-600"><Clock size={20} strokeWidth={1.5} /></div>
+        <div>
+          <div className="font-mono tabular-nums text-lg font-semibold text-ink">{format(parseISO(o.start), 'h:mm a')}</div>
+          <div className="text-2xs text-faint">{format(parseISO(o.start), 'h:mm a')} – {format(parseISO(o.end), 'h:mm a')}</div>
+        </div>
+      </div>
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-ink">{o.appointment.title}</span>
+          {o.isRecurring && <Tag><Repeat size={10} /> {describeRule(o.appointment.recurrenceRule)}</Tag>}
+        </div>
+        {client && <div className="mt-1 flex items-center text-sm text-muted"><User size={14} className="me-1.5" /> {fullName(client)}</div>}
+        {locationLabel && <div className="mt-1 flex items-center text-sm text-muted"><MapPin size={14} className="me-1.5" /> {locationLabel}</div>}
+        {staffMember && <div className="mt-1 flex items-center text-sm text-muted"><User size={14} className="me-1.5" /> {staffMember.name}</div>}
+      </div>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={() => onReschedule(o)} title="Reschedule"><CalendarClock size={15} /></Button>
+        {o.isRecurring && <Button variant="ghost" size="sm" onClick={() => onSkip(o)} title="Cancel this occurrence"><X size={15} /></Button>}
+        <Button variant="ghost" size="sm" className="text-ember-600" onClick={() => onDelete(o)} title={o.isRecurring ? 'Delete whole series' : 'Delete'}>
+          {o.isRecurring ? 'Series' : <X size={15} />}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+/** A real month grid — day cells with appointment pills, month navigation,
+ *  click a day to see its full agenda below. */
+function MonthGrid({ viewMonth, grouped, selectedDay, onSelectDay }: {
+  viewMonth: Date
+  grouped: Map<string, Occurrence[]>
+  selectedDay: string | null
+  onSelectDay: (day: string) => void
+}) {
+  const gridStart = startOfWeek(startOfMonth(viewMonth))
+  const gridEnd = endOfWeek(endOfMonth(viewMonth))
+  const gridDays = eachDayOfInterval({ start: gridStart, end: gridEnd })
+  const today = new Date()
+
+  return (
+    <div className="overflow-hidden rounded-card border border-line">
+      <div className="grid grid-cols-7 border-b border-line bg-surface2">
+        {WEEKDAYS.map(d => (
+          <div key={d} className="py-2 text-center text-2xs font-semibold uppercase tracking-wide text-faint">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {gridDays.map((day: Date) => {
+          const dayStr = format(day, 'yyyy-MM-dd')
+          const dayOccs = grouped.get(dayStr) ?? []
+          const inMonth = isSameMonth(day, viewMonth)
+          const isToday = isSameDay(day, today)
+          const isSelected = dayStr === selectedDay
+          return (
+            <button
+              key={dayStr}
+              onClick={() => onSelectDay(dayStr)}
+              className={`flex min-h-[84px] flex-col items-stretch gap-1 border-b border-e border-line p-1.5 text-start transition-colors last:border-e-0 [&:nth-child(7n)]:border-e-0 ${
+                isSelected ? 'bg-verde-100/50' : 'hover:bg-surface2'
+              } ${inMonth ? '' : 'bg-surface2/40'}`}
+            >
+              <span className={`self-start rounded-full px-1.5 text-xs font-medium tabular-nums ${
+                isToday ? 'bg-verde-600 text-white' : inMonth ? 'text-ink' : 'text-faint'
+              }`}>
+                {format(day, 'd')}
+              </span>
+              <div className="space-y-0.5 overflow-hidden">
+                {dayOccs.slice(0, 3).map((o, i) => (
+                  <div key={o.appointment.id + i} className="truncate rounded bg-verde-600/15 px-1 py-0.5 text-2xs text-verde-700">
+                    {format(parseISO(o.start), 'h:mma')} {o.appointment.title}
+                  </div>
+                ))}
+                {dayOccs.length > 3 && <div className="px-1 text-2xs text-faint">+{dayOccs.length - 3} more</div>}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [reschedule, setReschedule] = useState<Occurrence | null>(null)
+  const [view, setView] = useState<'month' | 'list'>('month')
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()))
+  const [selectedDay, setSelectedDay] = useState<string | null>(format(new Date(), 'yyyy-MM-dd'))
 
-  const masters = useLiveQuery(() => appointmentsRepo.masters(), [], [])
+  const allMasters = useLiveQuery(() => appointmentsRepo.masters(), [], [])
   const clients = useLiveQuery(() => clientsRepo.all(), [], [])
+  const staff = useLiveQuery(() => staffRepo.all(), [], [])
+  const locations = useLiveQuery(() => locationsRepo.all(), [], [])
+  const [staffFilter, setStaffFilter] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
   const clientMap = new Map(clients.map(c => [c.id, c]))
+  const staffMap = new Map(staff.map(s => [s.id, s]))
+  const locationMap = new Map(locations.map(l => [l.id, l]))
 
-  // Show a rolling window: last 7 days → next 60 days
-  const rangeStart = format(addDays(new Date(), -7), 'yyyy-MM-dd')
-  const rangeEnd = format(addDays(new Date(), 60), 'yyyy-MM-dd')
-  const occurrences = expandAll(masters, rangeStart, rangeEnd)
+  const showScope = staff.length > 0 || locations.length > 0
+  const masters = allMasters.filter(a =>
+    (!staffFilter || a.staffId === staffFilter) && (!locationFilter || a.locationId === locationFilter),
+  )
 
-  const grouped = new Map<string, Occurrence[]>()
-  for (const o of occurrences) {
-    if (!grouped.has(o.date)) grouped.set(o.date, [])
-    grouped.get(o.date)!.push(o)
-  }
+  // Month view needs the full visible grid (including lead/trail days from
+  // adjacent months); list view shows a rolling window instead. Expand over
+  // whichever range the active view actually needs.
+  const monthGridStart = format(startOfWeek(startOfMonth(viewMonth)), 'yyyy-MM-dd')
+  const monthGridEnd = format(endOfWeek(endOfMonth(viewMonth)), 'yyyy-MM-dd')
+  const listRangeStart = format(addDays(new Date(), -7), 'yyyy-MM-dd')
+  const listRangeEnd = format(addDays(new Date(), 60), 'yyyy-MM-dd')
+  const rangeStart = view === 'month' ? monthGridStart : listRangeStart
+  const rangeEnd = view === 'month' ? monthGridEnd : listRangeEnd
+  const occurrences = useMemo(() => expandAll(masters, rangeStart, rangeEnd), [masters, rangeStart, rangeEnd])
+
+  const grouped = useMemo(() => {
+    const m = new Map<string, Occurrence[]>()
+    for (const o of occurrences) {
+      if (!m.has(o.date)) m.set(o.date, [])
+      m.get(o.date)!.push(o)
+    }
+    for (const list of m.values()) list.sort((a, b) => a.start.localeCompare(b.start))
+    return m
+  }, [occurrences])
   const days = Array.from(grouped.keys()).sort()
+  const selectedDayOccs = selectedDay ? (grouped.get(selectedDay) ?? []) : []
 
   async function skipOccurrence(o: Occurrence) {
     await appointmentsRepo.update(o.appointment.id, { exceptions: [...(o.appointment.exceptions ?? []), o.date] })
@@ -198,7 +352,7 @@ export default function CalendarPage() {
     const m = o.appointment
     if (m.recurrenceRule) {
       const sid = m.seriesId ?? m.id
-      const related = masters.filter(a => a.seriesId === sid || a.id === sid)
+      const related = allMasters.filter(a => a.seriesId === sid || a.id === sid)
       for (const a of related) await appointmentsRepo.remove(a.id)
       toast('Series deleted.')
     } else {
@@ -209,16 +363,85 @@ export default function CalendarPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Schedule</h1>
-          <p className="mt-1 text-sm text-faint">Next 60 days · recurring sessions expand automatically</p>
+          <p className="mt-1 text-sm text-faint">
+            {view === 'month' ? 'Recurring sessions expand automatically' : 'Next 60 days · recurring sessions expand automatically'}
+          </p>
         </div>
-        <Button variant="primary" onClick={() => setDialogOpen(true)}><Plus size={16} className="mr-2" /> New appointment</Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-ctl border border-line p-0.5">
+            <Button size="sm" variant={view === 'month' ? 'primary' : 'ghost'} onClick={() => setView('month')} title="Month view">
+              <LayoutGrid size={14} /> Month
+            </Button>
+            <Button size="sm" variant={view === 'list' ? 'primary' : 'ghost'} onClick={() => setView('list')} title="List view">
+              <List size={14} /> List
+            </Button>
+          </div>
+          <Button variant="primary" onClick={() => setDialogOpen(true)}><Plus size={16} className="me-2" /> New appointment</Button>
+        </div>
       </div>
 
-      {occurrences.length === 0 ? (
+      {showScope && (
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          {staff.length > 0 && (
+            <Field label="Coach">
+              <Select className="!h-8 w-44" value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+                <option value="">All coaches</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {locations.length > 0 && (
+            <Field label="Location">
+              <Select className="!h-8 w-44" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
+                <option value="">All locations</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </Select>
+            </Field>
+          )}
+        </div>
+      )}
+
+      {occurrences.length === 0 && days.length === 0 && view === 'list' ? (
         <EmptyState icon={<CalendarIcon size={32} strokeWidth={1.5} />} title="Your schedule is clear" body="Book a session — set it to repeat weekly and it fills the calendar for you." action={<Button variant="primary" onClick={() => setDialogOpen(true)}><Plus size={14} /> New appointment</Button>} />
+      ) : view === 'month' ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={() => setViewMonth((m: Date) => addMonths(m, -1))}><ChevronLeft size={16} /></Button>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-ink">{format(viewMonth, 'MMMM yyyy')}</h2>
+              <Button variant="ghost" size="sm" onClick={() => { setViewMonth(startOfMonth(new Date())); setSelectedDay(format(new Date(), 'yyyy-MM-dd')) }}>Today</Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setViewMonth((m: Date) => addMonths(m, 1))}><ChevronRight size={16} /></Button>
+          </div>
+
+          <MonthGrid viewMonth={viewMonth} grouped={grouped} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+
+          {selectedDay && (
+            <div>
+              <h3 className="mb-3 font-semibold text-muted">
+                {selectedDay === format(new Date(), 'yyyy-MM-dd') ? 'Today · ' : ''}{format(parseISO(selectedDay), 'EEEE, MMM d')}
+              </h3>
+              {selectedDayOccs.length === 0 ? (
+                <p className="text-sm text-faint">Nothing scheduled — click "New appointment" to book one.</p>
+              ) : (
+                <div className="space-y-3">
+                  {selectedDayOccs.map((o, idx) => (
+                    <OccurrenceCard
+                      key={o.appointment.id + idx} o={o}
+                      client={o.appointment.clientId ? clientMap.get(o.appointment.clientId) : undefined}
+                      staffMember={o.appointment.staffId ? staffMap.get(o.appointment.staffId) : undefined}
+                      locationName={o.appointment.locationId ? locationMap.get(o.appointment.locationId)?.name : undefined}
+                      onReschedule={setReschedule} onSkip={skipOccurrence} onDelete={deleteSeriesOrOne}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-8">
           {days.map(dayStr => {
@@ -230,35 +453,15 @@ export default function CalendarPage() {
                   {isToday ? 'Today · ' : ''}{format(parseISO(dayStr), 'EEEE, MMM d')}
                 </h3>
                 <div className="space-y-3">
-                  {grouped.get(dayStr)!.map((o, idx) => {
-                    const c = o.appointment.clientId ? clientMap.get(o.appointment.clientId) : undefined
-                    return (
-                      <Card key={o.appointment.id + idx} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="pt-1 text-verde-600"><Clock size={20} strokeWidth={1.5} /></div>
-                          <div>
-                            <div className="font-mono tnum text-lg font-semibold text-ink">{format(parseISO(o.start), 'h:mm a')}</div>
-                            <div className="text-2xs text-faint">{format(parseISO(o.start), 'h:mm a')} – {format(parseISO(o.end), 'h:mm a')}</div>
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-ink">{o.appointment.title}</span>
-                            {o.isRecurring && <Tag><Repeat size={10} /> {describeRule(o.appointment.recurrenceRule)}</Tag>}
-                          </div>
-                          {c && <div className="mt-1 flex items-center text-sm text-muted"><User size={14} className="mr-1.5" /> {fullName(c)}</div>}
-                          {o.appointment.location && <div className="mt-1 flex items-center text-sm text-muted"><MapPin size={14} className="mr-1.5" /> {o.appointment.location}</div>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setReschedule(o)} title="Reschedule"><CalendarClock size={15} /></Button>
-                          {o.isRecurring && <Button variant="ghost" size="sm" onClick={() => skipOccurrence(o)} title="Cancel this occurrence"><X size={15} /></Button>}
-                          <Button variant="ghost" size="sm" className="text-ember-600" onClick={() => deleteSeriesOrOne(o)} title={o.isRecurring ? 'Delete whole series' : 'Delete'}>
-                            {o.isRecurring ? 'Series' : <X size={15} />}
-                          </Button>
-                        </div>
-                      </Card>
-                    )
-                  })}
+                  {grouped.get(dayStr)!.map((o, idx) => (
+                    <OccurrenceCard
+                      key={o.appointment.id + idx} o={o}
+                      client={o.appointment.clientId ? clientMap.get(o.appointment.clientId) : undefined}
+                      staffMember={o.appointment.staffId ? staffMap.get(o.appointment.staffId) : undefined}
+                      locationName={o.appointment.locationId ? locationMap.get(o.appointment.locationId)?.name : undefined}
+                      onReschedule={setReschedule} onSkip={skipOccurrence} onDelete={deleteSeriesOrOne}
+                    />
+                  ))}
                 </div>
               </div>
             )
@@ -266,7 +469,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <NewAppointmentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <NewAppointmentDialog open={dialogOpen} onClose={() => setDialogOpen(false)} staff={staff} locations={locations} />
       <RescheduleDialog occ={reschedule} onClose={() => setReschedule(null)} />
     </div>
   )

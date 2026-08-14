@@ -105,7 +105,7 @@ grandfathering in S15: gate new, never claw back.
 |---|---|---|
 | Base | $32.50/mo *(billed annually — $468 up front)* | **$29/mo** |
 | Automated check-in summaries | +$12.42/mo | included |
-| Barcode / food logging | +$10.75/mo | included *(once §2.1 ships)* |
+| Barcode / food logging | +$10.75/mo | included *(shipped S18)* |
 | **Total** | **$55.67/mo · $668/yr** | **$29/mo · $348/yr** |
 
 **~48% cheaper, month-to-month, with no annual prepay.** That's the ad. Note their $468 is billed
@@ -179,7 +179,7 @@ recommendation to keep it.
 | **Wire remaining 5 AI models** | 5 of 12 registry entries dead in the UI | 🟨 | Same runtime, different model ids for 4 of them — bounded. `rtmpose-m` is a different framework entirely; consider deleting the row instead of building it. |
 | **Film Room on real footage** | Thresholds tuned on synthetic data only | 🟥 | Needs a real phone + a real set. Then a tuning pass. |
 | **Mobile responsive gaps** | Film Room / Calendar / Business / Settings unverified | 🟨 | Film Room's dual-video stage almost certainly needs a stacked layout under ~768px. |
-| **Assistant depth** | Explains numbers; registry promises program drafting at the standard tier | 🟦 | Either build it or correct the registry copy. Don't leave the claim dangling. |
+| **Assistant depth** | ✅ **Copy corrected S21** — was actively misleading in two ways, not one. `qwen3-4b`/`qwen3-8b`'s "program drafting"/"best quality" claims were unbuilt *and* the tiers are functionally inert even if downloaded (`lib/assistant.ts`'s `MODEL_REPO` is hardcoded to the 1.7B model — nothing switches on which tier is "installed"). Separately, the light tier's "turns typed notes into logged sets" claim was misattributing an already-free, zero-AI feature (`lib/quickLog.ts`, pure regex, works with no model installed) to a 1.1GB download. All three registry `purpose` strings now say what's real. | 🟦 | **Real follow-up, properly scoped now:** (1) make `qwen3-4b`/`qwen3-8b` actually loadable — `MODEL_REPO` needs to read the *installed* tier's real HF repo id, not a hardcoded constant; verify each against a real download first, same bar every other local-AI feature met. (2) Program drafting is a genuinely new feature — prompt a model for a *structured* `Program`/`Week`/`Day`/`Block` shape, parse+validate the output, and route it through a review-before-apply UI (never auto-write, matching `lib/quickLog.ts`'s own stated design rule: "it feeds this pipeline, it doesn't bypass it"). Two separable tasks — don't build both in one pass. |
 | **`sessionsRemaining`** | An estimate, not a real pack ledger (DEBT-21) | 🟨 | Now that money is involved, a real decrementing ledger is worth it. |
 | **Lighthouse + cross-browser** | Never run (DEBT-58) | 🟥 | Needs Firefox/Safari + Lighthouse CLI. |
 | **`symptomReadinessContribution()`** | Correct, tested, **zero callers** (DEBT-65) | 🟦 | Needs a *product* decision, not wiring. Do not close it by adding cycle data to the sync payload — a test forbids it. |

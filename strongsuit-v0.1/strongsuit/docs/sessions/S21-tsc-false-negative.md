@@ -75,6 +75,16 @@ roster summary, branding gating.)
 - `DEBT-68` — `foodEntries` missing from client portability export (same shape as DEBT-26).
 - `DEBT-69` — no CommandPalette entry for the Assistant.
 
+## Addendum, same session — Assistant registry copy
+Followed up on `ROADMAP.md`'s own "Assistant depth" item. Confirmed via source, not assumption: the
+standard/pro assistant tiers (`qwen3-4b`/`qwen3-8b`) are not just unbuilt but **functionally inert even if
+downloaded** — `lib/assistant.ts`'s `MODEL_REPO` is hardcoded to the 1.7B model, so nothing ever reads
+which tier is "installed." Separately, the light tier's "turns typed notes into logged sets" claim
+misattributed an already-free, zero-AI feature (`lib/quickLog.ts` — pure regex, no model required, works
+today) to a 1.1GB download. Rewrote all three registry `purpose` strings to say what's real; verified live
+in Settings with zero console errors. Real follow-up work is now properly scoped in `ROADMAP.md` §3 as two
+separable tasks (dynamic model selection; a structured-output drafting pipeline) rather than left dangling.
+
 ## For the next session
 The doc system worked exactly as intended — six real Antigravity sessions (S16–S20) picked up cleanly
 from `docs/STATUS.md`/`ROADMAP.md`/`DEBT.md` and shipped real, substantial features. The one gap was a

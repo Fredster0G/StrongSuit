@@ -90,19 +90,35 @@ export const MODEL_REGISTRY: ModelSpec[] = [
     purpose: 'More accurate hands-free logging, including in a noisy gym.',
   },
   {
-    id: 'qwen3-1.7b-instruct', label: 'Assistant (light)', kind: 'llm', tier: 'light',
+    id: 'qwen3-1.7b-instruct', label: 'Assistant', kind: 'llm', tier: 'light',
     sizeMb: 1100, licence: 'Apache-2.0', minRamGb: 8,
-    purpose: 'Explains the app’s own numbers in plain language and turns typed notes into logged sets.',
+    // "Turns typed notes into logged sets" used to be claimed here — that's
+    // Quick Log (lib/quickLog.ts), a pure regex parser with zero AI and zero
+    // download, real today regardless of whether this model is installed.
+    // Wrongly attributing a free feature to a 1.1GB download is its own kind
+    // of dishonesty; removed rather than left to mislead someone deciding
+    // whether the download is worth it.
+    purpose: 'Explains the app’s own numbers in plain language, grounded in a client’s real check-ins, sessions, and Film Room notes.',
   },
   {
     id: 'qwen3-4b-instruct', label: 'Assistant (standard)', kind: 'llm', tier: 'standard',
     sizeMb: 2500, licence: 'Apache-2.0', minRamGb: 16,
-    purpose: 'Adds drafting a program from a brief, which you then edit.',
+    // NOT JUST UNDOWNLOADABLE — FUNCTIONALLY INERT EVEN IF IT WERE. `lib/
+    // assistant.ts`'s MODEL_REPO is hardcoded to the 1.7B model; nothing
+    // reads this tier's id to switch which model actually loads, and no
+    // program-drafting feature exists anywhere in the codebase. Installing
+    // this row would do nothing today. Purpose text says so honestly instead
+    // of promising a feature — see docs/ROADMAP.md for the real scope this
+    // would take (dynamic model selection + a drafting pipeline + a
+    // review-before-apply UI, the same bar every other local-AI feature met).
+    purpose: 'Not yet wired to anything — installing this does nothing today. A future release may add program drafting from a brief at this tier.',
   },
   {
     id: 'qwen3-8b-instruct', label: 'Assistant (pro)', kind: 'llm', tier: 'pro',
     sizeMb: 4700, licence: 'Apache-2.0', minRamGb: 32, needsGpu: true,
-    purpose: 'Best explanation quality. Wants a real machine.',
+    // Same gap as the standard tier above — hardcoded MODEL_REPO means this
+    // is inert even if downloaded.
+    purpose: 'Not yet wired to anything — installing this does nothing today. The assistant always runs the light-tier model regardless of what’s installed here.',
   },
   {
     id: 'pose-lite', label: 'Movement tracking (light)', kind: 'pose', tier: 'embeddings',
